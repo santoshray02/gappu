@@ -111,6 +111,13 @@ Phase 0 (legal, Vertex terms) is not engineering but gates any paid launch; see 
 
 ## Gotchas learned this session
 
+- **Accepted risk — sign-in CSRF.** `/auth/google/start` doesn't bind `state` to a cookie, so an
+  attacker could start a login and get an invited parent to finish it, gaining a device on that
+  family (minutes, email/plan; no child data exists server-side). Not cookie-bound on purpose:
+  the Google return may land in a different browser context on iOS. On the iPad test, check
+  whether the Home Screen app and the Google return share cookies; if they do, add an HttpOnly
+  SameSite=Lax cookie at start and require it at callback. Watch `gappu-admin devices`.
+
 - `pkill -f server.js` kills **production** too. Kill scratch servers (`PORT=10899 GAPPU_DB=<tmp>`) by PID.
 - `/usr/bin/node` is v18 (no `node:sqlite`); the unit's `ExecStart` pins the nvm v22 binary.
   An `nvm uninstall 22.23.2` would take production down.
