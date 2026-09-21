@@ -1,0 +1,21 @@
+# Rendered by `./manage.sh install` into /etc/systemd/system/gappu.service.
+# @USER@, @DIR@ and @NODE@ are substituted; edit this template, not the installed copy.
+[Unit]
+Description=Gappu voice companion (Node)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@DIR@
+EnvironmentFile=@DIR@/.env
+ExecStart=@NODE@ --disable-warning=ExperimentalWarning server.js
+Restart=always
+RestartSec=5
+# ~1.4 MB per in-flight turn (load test 2026-09-21); 1.5G is ~1000 concurrent turns.
+MemoryMax=1536M
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

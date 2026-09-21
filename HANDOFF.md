@@ -39,9 +39,11 @@ contain Devanagari.
 ```bash
 cd ~/projects/gappu
 # edit …
-sudo systemctl restart gappu        # ~1 s; static files need no restart, worker.js/server.js do
-journalctl -u gappu -f              # logs
+./manage.sh test                    # smoke test: every entitlement path, mock Gemini, ~5 s
+./manage.sh deploy --no-pull        # smoke test + DB backup + restart + public health check
+./manage.sh logs                    # journalctl -f
 git add -A && git commit -m "…" && git push
+# from a clean tree, `./manage.sh deploy` pulls first
 ```
 
 Caddy only needs touching if the hostname or upstream port changes:
