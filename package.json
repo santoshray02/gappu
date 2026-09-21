@@ -1,0 +1,10 @@
+{
+  "name": "gappu",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "start": "node server.js"
+  }
+}

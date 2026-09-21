@@ -1,0 +1,9 @@
+# secrets — never commit
+.dev.vars
+.env
+# runtime data (Phase 1 entitlement DB, backups)
+data/
+# tooling
+node_modules/
+.wrangler/
+*.log

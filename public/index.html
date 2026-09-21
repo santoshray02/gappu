@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Gappu">
+<meta name="theme-color" content="#FFE78A">
+<title>Gappu</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #FFD23F;
+    --sky-light: #FFE78A;
+    --hill: #7CCB6B;
+    --hill-dark: #5FB456;
+    --gappu: #8A9BE8;
+    --gappu-dark: #6C7BD0;
+    --ink: #2A1E5C;
+    --rani: #FF4F8B;
+    --rani-dark: #C7336A;
+    --paper: #FFFDF6;
+    --muted: #6B6390;
+    --font: "Baloo 2", "Kohinoor Devanagari", system-ui, sans-serif;
+  }
+  /* Registered so the sky can cross-fade between times of day. */
+  @property --sky-top { syntax: "<color>"; inherits: true; initial-value: #FFE78A; }
+  @property --sky-bot { syntax: "<color>"; inherits: true; initial-value: #FFD23F; }
+  @property --hill-a { syntax: "<color>"; inherits: true; initial-value: #7CCB6B; }
+  @property --hill-b { syntax: "<color>"; inherits: true; initial-value: #5FB456; }
+  @property --on-sky { syntax: "<color>"; inherits: true; initial-value: #2A1E5C; }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    --sky-top: var(--sky-light);
+    --sky-bot: var(--sky);
+    --hill-a: var(--hill);
+    --hill-b: var(--hill-dark);
+    --on-sky: var(--ink);
+    font-family: var(--font);
+    color: var(--ink);
+    background: linear-gradient(var(--sky-top), var(--sky-bot) 70%);
+    transition: --sky-top 2.5s, --sky-bot 2.5s, --hill-a 2.5s, --hill-b 2.5s, --on-sky 2.5s;
+    overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body[data-time="morning"] { --sky-top: #FFF3D1; --sky-bot: #FFD9A3; }
+  body[data-time="evening"] { --sky-top: #FFD08A; --sky-bot: #FF9E7A; --hill-a: #6FBF63; --hill-b: #4FA34B; }
+  body[data-time="night"], body.sleeping {
+    --sky-top: #2B2A6B; --sky-bot: #4B3F9E; --hill-a: #3E8E5A; --hill-b: #2E7448; --on-sky: #FFFDF6;
+  }
+
+  /* ---------- Scene ---------- */
+  #scene { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  #scene > * { position: absolute; }
+  #sun {
+    top: calc(env(safe-area-inset-top) + 4vh); left: 7vw;
+    width: 16vmin; height: 16vmin; border-radius: 50%;
+    background: radial-gradient(circle, #FFF8D6 0 46%, #FFD23F 48% 100%);
+    box-shadow: 0 0 60px 10px rgba(255, 246, 200, .7);
+    transition: opacity 2s, transform 2s;
+  }
+  #sun::before {
+    content: ""; position: absolute; inset: -55%; border-radius: 50%;
+    background: repeating-conic-gradient(rgba(255,255,255,.45) 0 7deg, transparent 7deg 20deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 47%, #000 49% 100%);
+    mask: radial-gradient(circle, transparent 0 47%, #000 49% 100%);
+    animation: spin 70s linear infinite;
+  }
+  #moon {
+    top: calc(env(safe-area-inset-top) + 5vh); right: 9vw;
+    width: 12vmin; height: 12vmin; border-radius: 50%;
+    background: #FFF6C2; box-shadow: 0 0 50px 8px rgba(255, 246, 194, .45);
+    opacity: 0; transform: translateY(-40px); transition: opacity 2s, transform 2s;
+  }
+  #moon::before { /* crescent */
+    content: ""; position: absolute; top: -8%; left: 22%; width: 88%; height: 88%; border-radius: 50%;
+    background: var(--sky-top); transition: background 2.5s;
+  }
+  #stars {
+    inset: 0; opacity: 0; transition: opacity 2.5s;
+    background-image:
+      radial-gradient(2px 2px at 12% 18%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 27% 9%, #fff 50%, transparent 52%),
+      radial-gradient(3px 3px at 41% 24%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 58% 12%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 70% 30%, #fff 50%, transparent 52%),
+      radial-gradient(3px 3px at 83% 8%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 90% 36%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 5% 40%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 48% 42%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 33% 34%, #fff 50%, transparent 52%);
+  }
+  #stars::after {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      radial-gradient(2px 2px at 20% 28%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 64% 20%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 78% 44%, #fff 50%, transparent 52%),
+      radial-gradient(2px 2px at 15% 6%, #fff 50%, transparent 52%);
+    animation: twinkle 3s ease-in-out infinite alternate;
+  }
+  body[data-time="night"] #stars, body.sleeping #stars { opacity: .9; }
+  body[data-time="night"] #moon, body.sleeping #moon { opacity: 1; transform: none; }
+  body[data-time="night"] #sun, body.sleeping #sun { opacity: 0; transform: translateY(60px); }
+
+  .cloud {
+    top: var(--y); left: -30vw;
+    width: 18vmin; height: 7vmin; border-radius: 100px;
+    background: rgba(255,255,255,.92);
+    animation: drift var(--d) linear infinite; animation-delay: var(--delay);
+    transition: opacity 2.5s;
+  }
+  .cloud::before, .cloud::after {
+    content: ""; position: absolute; background: inherit; border-radius: 50%;
+  }
+  .cloud::before { width: 60%; height: 150%; left: 15%; top: -75%; }
+  .cloud::after { width: 42%; height: 110%; right: 12%; top: -45%; }
+  body[data-time="night"] .cloud, body.sleeping .cloud { opacity: .35; }
+
+  #fg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+  #flowers { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 4vh); left: 0; right: 0; height: 12vmin; }
+  #flowers svg { position: absolute; bottom: 0; width: 9vmin; height: 12vmin; transform-origin: 50% 100%; animation: sway 3.2s ease-in-out infinite alternate; }
+  #flowers svg:nth-child(1) { left: 6%; }
+  #flowers svg:nth-child(2) { left: 16%; animation-delay: -1.1s; width: 7vmin; height: 9.5vmin; }
+  #flowers svg:nth-child(3) { right: 9%; animation-delay: -2s; }
+  #flowers svg:nth-child(4) { right: 20%; animation-delay: -.6s; width: 7vmin; height: 9.5vmin; }
+
+  #butterfly {
+    top: 40vh; left: -12vmin; width: 8vmin; height: 6vmin;
+    animation: fly 38s linear infinite; animation-delay: 6s;
+  }
+  #butterfly .wing { transform-box: fill-box; animation: flap .3s ease-in-out infinite alternate; }
+  #butterfly .wing.l { transform-origin: 100% 50%; }
+  #butterfly .wing.r { transform-origin: 0% 50%; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes twinkle { to { opacity: .2; } }
+  @keyframes drift { to { transform: translateX(140vw); } }
+  @keyframes sway { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+  @keyframes fly {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(30vw, -8vh); }
+    50% { transform: translate(60vw, 4vh); }
+    75% { transform: translate(90vw, -6vh); }
+    100% { transform: translate(125vw, 2vh); }
+  }
+  @keyframes flap { from { transform: scaleX(1); } to { transform: scaleX(.3); } }
+
+  /* ---------- Stage ---------- */
+  #stage {
+    position: fixed; inset: 0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    justify-items: center;
+    padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 20px);
+    z-index: 1;
+  }
+  #stage::before { /* the hill Gappu sits on */
+    content: ""; position: absolute; left: -20%; right: -20%; bottom: -38vh;
+    height: 70vh; border-radius: 50%;
+    background: var(--hill-a); box-shadow: inset 0 14px 0 var(--hill-b);
+    transition: background 2.5s, box-shadow 2.5s;
+    z-index: 0;
+  }
+  #stage > * { position: relative; z-index: 3; }
+
+  #bubble {
+    position: relative;
+    min-height: 2.6em;
+    max-width: min(34ch, 88vw);
+    padding: .5em 1em;
+    border-radius: 28px;
+    background: var(--paper);
+    box-shadow: 0 6px 24px rgba(42, 30, 92, .12);
+    font-size: clamp(20px, 2.8vw, 28px);
+    font-weight: 700;
+    line-height: 1.4;
+    text-align: center;
+    opacity: 0; transform: translateY(6px) scale(.97);
+    transition: opacity .25s, transform .25s;
+  }
+  #bubble::after { /* tail pointing at Gappu */
+    content: ""; position: absolute; left: 50%; bottom: -12px;
+    width: 26px; height: 26px; background: var(--paper);
+    transform: translateX(-50%) rotate(45deg); border-radius: 4px;
+  }
+  #bubble.show { opacity: 1; transform: none; }
+
+  #face { height: min(54vh, 78vw); width: auto; align-self: center; overflow: visible; cursor: pointer; }
+  #head { transform-box: fill-box; transform-origin: 50% 60%; transition: transform .5s; }
+  body.giggle #head { animation: giggle .7s ease-in-out; }
+
+  .controls { display: grid; justify-items: center; gap: 10px; }
+  #talk {
+    --level: 0;
+    width: clamp(128px, 21vmin, 176px); aspect-ratio: 1;
+    border-radius: 50%;
+    border: 8px solid var(--paper);
+    background: var(--rani);
+    box-shadow: 0 10px 0 var(--rani-dark);
+    display: grid; place-items: center;
+    cursor: pointer; position: relative;
+    transition: transform .08s, box-shadow .08s, background .2s;
+  }
+  #talk:active { transform: translateY(8px); box-shadow: 0 2px 0 var(--rani-dark); }
+  #talk:focus-visible { outline: 5px solid var(--ink); outline-offset: 6px; }
+  #talk svg { width: 44%; height: 44%; }
+  #talk .stop { display: none; }
+  #hint { margin: 0; font-size: 20px; font-weight: 700; min-height: 1.4em; color: var(--on-sky); transition: color 2.5s; }
+
+  body.idle #talk { animation: breathe 2.6s ease-in-out infinite; }
+  body.listening #talk .mic { display: none; }
+  body.listening #talk .stop { display: block; }
+  body.listening #talk::after { /* pulsing ring */
+    content: ""; position: absolute; inset: -22px; border-radius: 50%;
+    border: 6px solid var(--rani); animation: ring 1.1s ease-out infinite;
+  }
+  body.listening #talk::before { /* live level from the mic */
+    content: ""; position: absolute; inset: -8px; border-radius: 50%;
+    background: rgba(255, 179, 207, .6);
+    transform: scale(calc(1 + var(--level) * .55));
+    transition: transform .08s;
+  }
+  body.thinking #talk { background: #C9B8F5; box-shadow: 0 10px 0 #9C88D8; }
+  body.sleeping #talk { background: #D8D3E8; box-shadow: 0 10px 0 #B1AAC9; }
+
+  /* ---------- Gappu's face and moods ---------- */
+  .eye { transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; transition: transform .3s; }
+  #eyes { transition: transform .3s; }
+  .brow { transform-box: fill-box; transform-origin: center; opacity: 0; transition: opacity .3s, transform .3s; }
+  .ear { transform-box: fill-box; }
+  #earL { transform-origin: 88% 50%; }
+  #earR { transform-origin: 12% 50%; }
+  #mouth { transform-box: fill-box; transform-origin: center; transition: transform .3s; }
+  #tongue { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(0); transition: transform .25s; }
+  .blush { transition: opacity .4s; }
+  #trunk { transform-box: fill-box; transform-origin: 50% 0%; transition: transform .4s; }
+  #dots, #zzz { opacity: 0; transition: opacity .3s; }
+
+  body.listening #earL { animation: flapL calc(.5s - var(--level, 0) * .2s) ease-in-out infinite alternate; }
+  body.listening #earR { animation: flapR calc(.5s - var(--level, 0) * .2s) ease-in-out infinite alternate; }
+  body.listening .eye { transform: scale(1.08); }
+  body.thinking #eyes { transform: translateY(-7px); }
+  body.thinking #dots { opacity: 1; }
+  body.thinking #dots circle { animation: pop 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  body.thinking #dots circle:nth-child(2) { animation-delay: .15s; }
+  body.thinking #dots circle:nth-child(3) { animation-delay: .3s; }
+  body.thinking #trunk { animation: sway 1.4s ease-in-out infinite alternate; }
+  body.talking #mouth { animation: talk .2s ease-in-out infinite alternate; }
+  body.talking[data-mood="happy"] #trunk,
+  body.talking[data-mood="silly"] #trunk { animation: trunkUp 1.1s ease-in-out infinite alternate; }
+
+  body[data-mood="curious"] #head { transform: rotate(-4deg); }
+  body[data-mood="curious"] .brow { opacity: 1; }
+  body[data-mood="curious"] #browL { transform: translateY(-9px) rotate(-8deg); }
+  body[data-mood="curious"] .eye { transform: scale(1.12); }
+  body[data-mood="silly"] #tongue { transform: scaleY(1); }
+  body[data-mood="silly"] .brow { opacity: 1; }
+  body[data-mood="silly"] #browL { transform: translateY(-8px); }
+  body[data-mood="silly"] #browR { transform: translateY(5px) rotate(10deg); }
+  body[data-mood="caring"] .brow { opacity: 1; }
+  body[data-mood="caring"] #browL { transform: rotate(14deg) translateY(-2px); }
+  body[data-mood="caring"] #browR { transform: rotate(-14deg) translateY(-2px); }
+  body[data-mood="caring"] .blush { opacity: .85; }
+  body[data-mood="caring"] #head { transform: rotate(3deg); }
+  body[data-mood="calm"] .eye { transform: scaleY(.8); animation-duration: 7s; }
+  body[data-mood="calm"] .blush { opacity: .35; }
+
+  body.sleepy .eye { transform: scaleY(.55); animation: blink 3s infinite; }
+  body.sleepy #head { transform: rotate(2deg) translateY(4px); }
+  body.sleepy #mouth { animation: yawn 9s ease-in-out infinite; }
+  body.sleeping .eye { animation: none; transform: scaleY(.12); }
+  body.sleeping #zzz { opacity: 1; }
+  body.sleeping #zzz text { animation: floatUp 2.4s ease-in-out infinite; }
+  body.sleeping #zzz text:nth-child(2) { animation-delay: -1.2s; }
+  body.sleeping #head { animation: snore 3s ease-in-out infinite; }
+
+  @keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+  @keyframes flapL { to { transform: rotate(-10deg); } }
+  @keyframes flapR { to { transform: rotate(10deg); } }
+  @keyframes talk { from { transform: scaleY(.35); } to { transform: scaleY(1.5); } }
+  @keyframes trunkUp { to { transform: rotate(-9deg); } }
+  @keyframes pop { 50% { transform: scale(1.3); } }
+  @keyframes ring { from { transform: scale(.85); opacity: 1; } to { transform: scale(1.2); opacity: 0; } }
+  @keyframes breathe { 50% { scale: 1.04; } }
+  @keyframes giggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-6deg) scale(1.03); } 40% { transform: rotate(5deg); } 60% { transform: rotate(-4deg) scale(1.02); } 80% { transform: rotate(3deg); } }
+  @keyframes yawn { 0%, 84%, 100% { transform: scale(1); } 90%, 96% { transform: scale(1.6, 2.6); } }
+  @keyframes snore { 50% { transform: translateY(5px) scale(1.015); } }
+  @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-14px); opacity: .2; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* ---------- Parent lock ---------- */
+  #lock {
+    position: fixed; top: calc(env(safe-area-inset-top) + 12px); right: 14px; z-index: 5;
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 0; background: rgba(255,255,255,.45);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  #lock svg { width: 22px; height: 22px; }
+  #lock.holding { background: var(--paper); box-shadow: 0 0 0 4px var(--ink); transition: box-shadow 1.2s; }
+
+  /* ---------- Grown-up sheets ---------- */
+  .sheet {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: calc(env(safe-area-inset-top) + 24px) 16px 24px;
+    background: rgba(42, 30, 92, .5);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    overflow-y: auto;
+    -webkit-user-select: text; user-select: text;
+  }
+  .sheet[hidden] { display: none; }
+  .panel {
+    width: min(680px, 100%);
+    background: var(--paper);
+    border-radius: 24px;
+    padding: 0 24px 32px;
+  }
+  .panel.small { width: min(380px, 100%); margin-top: 12vh; padding-top: 24px; }
+  .panel h1 { margin: 0 0 4px; font-size: 30px; line-height: 1.2; font-weight: 800; }
+  .panel h2 { margin: 28px 0 8px; font-size: 22px; font-weight: 800; }
+  .panel p { margin: 0 0 12px; font-size: 18px; line-height: 1.45; }
+  .muted { color: var(--muted); }
+  .panel-head {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 20px 0 12px; margin-bottom: 4px;
+    background: var(--paper); border-bottom: 1px solid #ECE7F7;
+  }
+  .card { background: #fff; border: 1px solid #ECE7F7; border-radius: 16px; padding: 16px; margin-top: 8px; }
+  .card p { margin-bottom: 8px; }
+  .bar { height: 14px; border-radius: 7px; background: #ECE7F7; overflow: hidden; margin: 6px 0 10px; }
+  .bar i { display: block; height: 100%; width: 0; border-radius: 7px; background: var(--hill-dark); transition: width .4s; }
+  .bar i.warn { background: #FF9F1C; }
+  .bar i.full { background: var(--rani); }
+  .stat { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .pill { display: inline-block; padding: 3px 12px; border-radius: 999px; background: #F4F1FC; font-weight: 700; font-size: 16px; }
+  .pill.alert { background: #FFE3EE; color: var(--rani-dark); }
+  label { display: grid; gap: 4px; margin: 14px 0 0; font-size: 17px; font-weight: 700; }
+  label small { font-weight: 500; color: var(--muted); font-size: 15px; }
+  label.check { display: flex; align-items: center; gap: 10px; }
+  label.check input { width: 22px; height: 22px; accent-color: var(--ink); }
+  input, select {
+    font: 500 18px var(--font); color: var(--ink);
+    padding: 10px 12px; border-radius: 12px;
+    border: 2px solid #D9D3EE; background: #fff; width: 100%;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid var(--rani); outline-offset: 2px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .row input { flex: 1; }
+  .panel button {
+    font: 700 18px var(--font);
+    padding: 10px 18px; border-radius: 12px; cursor: pointer;
+    border: 2px solid var(--ink); background: #fff; color: var(--ink);
+  }
+  .panel button.primary { background: var(--ink); color: #fff; }
+  .panel button.ghost { border-color: transparent; background: transparent; }
+  .panel button.danger { border-color: var(--rani-dark); color: var(--rani-dark); }
+  .panel form > button.primary { margin-top: 18px; }
+  .err { color: var(--rani-dark); font-weight: 700; min-height: 1.4em; }
+  #savedMsg { margin-left: 12px; font-weight: 700; color: var(--hill-dark); }
+
+  #memList, #logList { list-style: none; margin: 0; padding: 0; }
+  #memList li {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid #ECE7F7; font-size: 18px;
+  }
+  #memList li button { padding: 4px 12px; font-size: 16px; }
+  #logList li { padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; background: #F4F1FC; font-size: 17px; line-height: 1.4; }
+  #logList li.alert { background: #FFE3EE; box-shadow: inset 6px 0 0 var(--rani); }
+  #logList .meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); margin-bottom: 2px; }
+  #logList .mood { font-size: 15px; }
+  #logList b { font-weight: 800; }
+  .empty { color: var(--muted); font-size: 17px; }
+  @media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="idle">
+
+<div id="scene" aria-hidden="true">
+  <div id="stars"></div>
+  <div id="sun"></div>
+  <div id="moon"></div>
+  <div class="cloud" style="--y: 9vh; --d: 75s; --delay: -20s"></div>
+  <div class="cloud" style="--y: 22vh; --d: 95s; --delay: -60s; width: 13vmin; height: 5vmin"></div>
+  <div class="cloud" style="--y: 15vh; --d: 110s; --delay: -5s; width: 22vmin; height: 8vmin"></div>
+  <svg id="butterfly" viewBox="0 0 80 60">
+    <g class="wing l"><ellipse cx="26" cy="26" rx="22" ry="20" fill="#FF9F1C"/><circle cx="24" cy="24" r="7" fill="#FFD23F"/></g>
+    <g class="wing r"><ellipse cx="54" cy="26" rx="22" ry="20" fill="#FF9F1C"/><circle cx="56" cy="24" r="7" fill="#FFD23F"/></g>
+    <rect x="37" y="14" width="6" height="34" rx="3" fill="#2A1E5C"/>
+  </svg>
+</div>
+
+<div id="fg" aria-hidden="true">
+  <div id="flowers">
+    <svg viewBox="0 0 60 80"><path d="M30 80V38" stroke="#4FA34B" stroke-width="5" stroke-linecap="round"/><ellipse cx="22" cy="58" rx="9" ry="5" fill="#5FB456" transform="rotate(-30 22 58)"/><g fill="#FF9F1C"><circle cx="30" cy="16" r="9"/><circle cx="43" cy="25" r="9"/><circle cx="38" cy="40" r="9"/><circle cx="22" cy="40" r="9"/><circle cx="17" cy="25" r="9"/></g><circle cx="30" cy="29" r="8" fill="#FFD23F"/></svg>
+    <svg viewBox="0 0 60 80"><path d="M30 80V38" stroke="#4FA34B" stroke-width="5" stroke-linecap="round"/><g fill="#FF7FAE"><circle cx="30" cy="16" r="9"/><circle cx="43" cy="25" r="9"/><circle cx="38" cy="40" r="9"/><circle cx="22" cy="40" r="9"/><circle cx="17" cy="25" r="9"/></g><circle cx="30" cy="29" r="8" fill="#FFFDF6"/></svg>
+    <svg viewBox="0 0 60 80"><path d="M30 80V38" stroke="#4FA34B" stroke-width="5" stroke-linecap="round"/><ellipse cx="38" cy="60" rx="9" ry="5" fill="#5FB456" transform="rotate(30 38 60)"/><g fill="#8A9BE8"><circle cx="30" cy="16" r="9"/><circle cx="43" cy="25" r="9"/><circle cx="38" cy="40" r="9"/><circle cx="22" cy="40" r="9"/><circle cx="17" cy="25" r="9"/></g><circle cx="30" cy="29" r="8" fill="#FFD23F"/></svg>
+    <svg viewBox="0 0 60 80"><path d="M30 80V38" stroke="#4FA34B" stroke-width="5" stroke-linecap="round"/><g fill="#FF4F8B"><circle cx="30" cy="16" r="9"/><circle cx="43" cy="25" r="9"/><circle cx="38" cy="40" r="9"/><circle cx="22" cy="40" r="9"/><circle cx="17" cy="25" r="9"/></g><circle cx="30" cy="29" r="8" fill="#FFF6C2"/></svg>
+  </div>
+</div>
+
+<main id="stage">
+  <div id="bubble" aria-live="polite"></div>
+
+  <svg id="face" viewBox="0 0 400 380" role="img" aria-label="Gappu the elephant">
+    <g id="head">
+      <g id="earL" class="ear">
+        <ellipse cx="92" cy="175" rx="82" ry="98" fill="#8A9BE8"/>
+        <ellipse cx="100" cy="178" rx="56" ry="72" fill="#FFB3CF"/>
+      </g>
+      <g id="earR" class="ear">
+        <ellipse cx="308" cy="175" rx="82" ry="98" fill="#8A9BE8"/>
+        <ellipse cx="300" cy="178" rx="56" ry="72" fill="#FFB3CF"/>
+      </g>
+      <circle cx="200" cy="175" r="110" fill="#8A9BE8"/>
+      <g id="flower" transform="translate(258 84)">
+        <circle cx="0" cy="-13" r="11" fill="#FF9F1C"/>
+        <circle cx="12" cy="-4" r="11" fill="#FF9F1C"/>
+        <circle cx="8" cy="11" r="11" fill="#FF9F1C"/>
+        <circle cx="-8" cy="11" r="11" fill="#FF9F1C"/>
+        <circle cx="-12" cy="-4" r="11" fill="#FF9F1C"/>
+        <circle cx="0" cy="0" r="8" fill="#FFD23F"/>
+      </g>
+      <path id="browL" class="brow" d="M140 128 Q158 118 176 128" stroke="#2A1E5C" stroke-width="6" stroke-linecap="round" fill="none"/>
+      <path id="browR" class="brow" d="M224 128 Q242 118 260 128" stroke="#2A1E5C" stroke-width="6" stroke-linecap="round" fill="none"/>
+      <g id="eyes">
+        <g class="eye"><ellipse cx="158" cy="160" rx="14" ry="19" fill="#2A1E5C"/><circle cx="163" cy="152" r="5" fill="#fff"/></g>
+        <g class="eye"><ellipse cx="242" cy="160" rx="14" ry="19" fill="#2A1E5C"/><circle cx="247" cy="152" r="5" fill="#fff"/></g>
+      </g>
+      <circle class="blush" cx="128" cy="206" r="17" fill="#FF7FAE" opacity=".55"/>
+      <circle class="blush" cx="272" cy="206" r="17" fill="#FF7FAE" opacity=".55"/>
+      <ellipse id="mouth" cx="158" cy="246" rx="15" ry="7" fill="#2A1E5C"/>
+      <ellipse id="tongue" cx="158" cy="252" rx="9" ry="9" fill="#FF7FAE"/>
+      <g id="trunk">
+        <path d="M178 205 C172 260 176 305 214 322 C240 333 262 318 254 300 C249 290 236 293 232 300 C205 292 212 250 222 205 Z"
+              fill="#8A9BE8" stroke="#6C7BD0" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M185 248 H214 M187 270 H213" stroke="#6C7BD0" stroke-width="4" stroke-linecap="round"/>
+        <ellipse cx="200" cy="202" rx="26" ry="11" fill="#8A9BE8"/>
+      </g>
+    </g>
+    <g id="dots" fill="#FFFDF6">
+      <circle cx="322" cy="62" r="8"/><circle cx="344" cy="40" r="10"/><circle cx="370" cy="16" r="13"/>
+    </g>
+    <g id="zzz" fill="#FFFDF6" font-family="Baloo 2, sans-serif" font-weight="800">
+      <text x="298" y="72" font-size="30">z</text><text x="322" y="44" font-size="42">Z</text>
+    </g>
+  </svg>
+
+  <div class="controls">
+    <button id="talk" type="button" aria-label="Talk to Gappu">
+      <svg class="mic" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="2.5" width="6" height="12" rx="3" fill="#fff"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/>
+      </svg>
+      <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3" fill="#fff"/></svg>
+    </button>
+    <p id="hint">Tap and talk</p>
+  </div>
+</main>
+
+<button id="lock" type="button" aria-label="Parent settings: press and hold">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#2A1E5C" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+    <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+  </svg>
+</button>
+
+<!-- First-run setup -->
+<div id="setup" class="sheet" hidden>
+  <form class="panel small" id="setupForm">
+    <h1>Set up Gappu</h1>
+    <p class="muted">For grown-ups. You only do this once on this iPad.</p>
+    <label>App token
+      <input name="token" required autocomplete="off" autocapitalize="off" spellcheck="false">
+      <small>The APP_TOKEN you set on the server.</small>
+    </label>
+    <label>Parent PIN
+      <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required>
+      <small>4 to 6 digits. Needed to open settings later.</small>
+    </label>
+    <div class="grid2">
+      <label>Child's nickname<input name="childName" required></label>
+      <label>Companion's name<input name="companionName" required></label>
+    </div>
+    <label>Languages
+      <select name="languages">
+        <option>Hindi and English (Hinglish)</option>
+        <option>Mostly Hindi</option>
+        <option>Mostly English</option>
+      </select>
+    </label>
+    <button class="primary" type="submit">Start</button>
+  </form>
+</div>
+
+<!-- PIN check -->
+<div id="pinSheet" class="sheet" hidden>
+  <form class="panel small" id="pinCheck">
+    <h1>Parent PIN</h1>
+    <label>Enter your PIN<input name="pin" type="password" inputmode="numeric" autocomplete="off"></label>
+    <p id="pinErr" class="err" role="alert"></p>
+    <div class="row">
+      <button type="button" id="pinCancel" class="ghost">Cancel</button>
+      <button class="primary" type="submit">Open settings</button>
+    </div>
+  </form>
+</div>
+
+<!-- Parent panel -->
+<div id="parent" class="sheet" hidden>
+  <div class="panel">
+    <div class="panel-head">
+      <h1>Parent settings</h1>
+      <button id="closeParent" type="button" class="primary">Done</button>
+    </div>
+
+    <h2>Today</h2>
+    <div class="card">
+      <p id="usageText"></p>
+      <div class="bar"><i id="usageBar"></i></div>
+      <div class="stat">
+        <span id="sessionPill" class="pill"></span>
+        <span id="flagPill" class="pill"></span>
+        <button id="resetToday" type="button">Reset today's time</button>
+      </div>
+    </div>
+
+    <h2>Profile and limits</h2>
+    <form id="profileForm">
+      <div class="grid2">
+        <label>Child's nickname<input name="childName" required></label>
+        <label>Age<input name="age" type="number" min="2" max="12" required></label>
+        <label>Companion's name<input name="companionName" required></label>
+        <label>Languages
+          <select name="languages">
+            <option>Hindi and English (Hinglish)</option>
+            <option>Mostly Hindi</option>
+            <option>Mostly English</option>
+          </select>
+        </label>
+        <label>Minutes per session<input name="sessionMinutes" type="number" min="1" max="120" required></label>
+        <label>Minutes per day<input name="dailyMinutes" type="number" min="1" max="240" required></label>
+      </div>
+      <label>App token<input name="token" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="check"><input name="sounds" type="checkbox"> Sound effects (tap, reply and nap-time chimes)</label>
+      <button class="primary" type="submit">Save changes</button><span id="savedMsg" role="status"></span>
+    </form>
+
+    <h2>Voices</h2>
+    <p id="voiceInfo" class="muted"></p>
+    <p class="muted">If a voice sounds robotic: Settings › Accessibility › Spoken Content › Voices, then download the Enhanced version of Lekha (Hindi) and an English (India) voice.</p>
+    <button id="testVoices" type="button">Play test lines</button>
+
+    <h2 id="memTitle">What Gappu remembers</h2>
+    <p class="muted">Saved on this iPad and sent with each question so Gappu can use it.</p>
+    <ul id="memList"></ul>
+    <form id="memForm" class="row">
+      <input name="fact" placeholder="For example: Loves mangoes" maxlength="120">
+      <button type="submit">Add</button>
+    </form>
+
+    <h2>Conversations</h2>
+    <p class="muted">Saved only on this iPad. Pink ones may need your attention.</p>
+    <label class="check"><input id="flaggedOnly" type="checkbox"> Show only flagged</label>
+    <ol id="logList" style="margin-top: 12px"></ol>
+    <button id="clearLog" type="button" class="danger">Clear conversations</button>
+
+    <h2>Parent PIN</h2>
+    <form id="pinForm" class="row">
+      <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" placeholder="New PIN" required>
+      <button type="submit">Change PIN</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+
+  // ---------- Storage (this iPad only) ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("gappu:" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("gappu:" + k, JSON.stringify(v)); } catch {} },
+  };
+  const DEFAULTS = {
+    childName: "Tosu", age: 4, languages: "Hindi and English (Hinglish)", companionName: "Gappu",
+    sessionMinutes: 15, dailyMinutes: 30, token: "", pinHash: "", sounds: true,
+  };
+  let settings = Object.assign({}, DEFAULTS, store.get("settings", {}));
+  let memories = store.get("memories", []);
+  let log = store.get("log", []);
+  let history = []; // this session only
+  const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  let usage = store.get("usage", { date: today(), seconds: 0 });
+  let sessionSeconds = 0;
+  let lastInteraction = 0;
+
+  const saveSettings = () => store.set("settings", settings);
+  const defaultLang = () => (/mostly english/i.test(settings.languages) ? "en" : "hi");
+
+  // ---------- Scene: time of day ----------
+  function timeOfDay() {
+    const h = new Date().getHours();
+    return h < 6 ? "night" : h < 10 ? "morning" : h < 17 ? "day" : h < 19 ? "evening" : "night";
+  }
+  const applyTime = () => { document.body.dataset.time = timeOfDay(); };
+  applyTime();
+  setInterval(applyTime, 60000);
+
+  // ---------- Sound cues (tiny synth, no files) ----------
+  let ctx;
+  function tone(seq) {
+    if (!settings.sounds) return;
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume();
+      let t = ctx.currentTime;
+      for (const [freq, dur] of seq) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(ctx.destination);
+        o.start(t); o.stop(t + dur + 0.02);
+        t += dur;
+      }
+    } catch {}
+  }
+  const SFX = {
+    tap: [[520, .08]],
+    reply: [[660, .09], [880, .14]],
+    giggle: [[700, .06], [900, .06], [1150, .1]],
+    sleep: [[523, .25], [440, .25], [349, .45]],
+  };
+
+  // ---------- State ----------
+  let state = "idle";
+  const HINTS = { idle: "Tap and talk", listening: "Listening. Tap when done.", thinking: "Thinking…", talking: "Tap to talk again", sleeping: "" };
+  function setState(s) {
+    state = s;
+    document.body.classList.remove("idle", "listening", "thinking", "talking", "sleeping");
+    document.body.classList.add(s);
+    $("#hint").textContent = s === "sleeping" ? settings.companionName + " is sleeping. See you tomorrow!" : HINTS[s];
+    $("#talk").disabled = s === "thinking" || s === "sleeping";
+    if (s === "sleeping") document.body.classList.remove("sleepy");
+  }
+  function showBubble(text) {
+    const b = $("#bubble");
+    b.textContent = text || "";
+    b.classList.toggle("show", !!text);
+  }
+  function applyNames() {
+    const n = settings.companionName;
+    $("#face").setAttribute("aria-label", n + " the elephant");
+    $("#talk").setAttribute("aria-label", "Talk to " + n);
+    $("#memTitle").textContent = "What " + n + " remembers";
+    document.title = n;
+  }
+
+  // ---------- Speech out (iPad's own voices) ----------
+  let voices = [];
+  const loadVoices = () => { voices = speechSynthesis.getVoices(); };
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+  function pickVoice(lang) {
+    const want = lang === "hi" ? ["hi-in", "hi"] : ["en-in", "en-gb", "en-us", "en"];
+    for (const w of want) {
+      const v = voices.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(w));
+      if (v) return v;
+    }
+    return null;
+  }
+  function utter(text, lang) {
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoice(lang);
+    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = lang === "hi" ? "hi-IN" : "en-IN"; }
+    u.rate = 0.92;
+    u.pitch = 1.25;
+    return u;
+  }
+  let speakId = 0;
+  let ttsUnlocked = false;
+  function unlockTTS() { // iOS only allows speech after a tap
+    if (ttsUnlocked) return;
+    ttsUnlocked = true;
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  }
+  function speak(text, lang, onDone) {
+    showBubble(text);
+    const u = utter(text, lang);
+    const id = ++speakId;
+    const finish = () => {
+      if (id !== speakId || state !== "talking") return; // replaced or interrupted
+      if (onDone) onDone();
+      else { setState("idle"); checkLimit(); }
+    };
+    u.onend = finish;
+    u.onerror = finish;
+    speechSynthesis.cancel();
+    setState("talking");
+    speechSynthesis.speak(u);
+  }
+  const LINES = {
+    notHeard: { hi: "मैंने ठीक से नहीं सुना। फिर से बोलो ना!", en: "I didn't hear that. Can you say it again?" },
+    error: { hi: "ओह! मेरा दिमाग थोड़ा सो गया। फिर से बोलो?", en: "Oops, my brain took a little nap. Try again?" },
+    offline: { hi: "इंटरनेट नहीं मिल रहा। मम्मी पापा से कहो, देख लें।", en: "I can't find the internet. Ask Mummy or Papa to check." },
+    auth: { hi: "मम्मी पापा से कहो, सेटिंग देख लें।", en: "Please ask Mummy or Papa to check the settings." },
+    mic: { hi: "मैं तुम्हें सुन नहीं पा रहा। मम्मी पापा से मदद लो।", en: "I can't hear you. Ask Mummy or Papa for help." },
+  };
+  const sayLine = (key) => speak(LINES[key][defaultLang()], defaultLang());
+
+  // ---------- Microphone ----------
+  let stream, source, proc, chunks = [], recording = false, speechStarted = false, silenceMs = 0, recMs = 0;
+  const talk = $("#talk");
+  async function openMic() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") await ctx.resume();
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    source = ctx.createMediaStreamSource(stream);
+  }
+  function closeMic() { // release the mic after every turn so the voice plays at full volume
+    try { source && source.disconnect(); } catch {}
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null; source = null;
+    talk.style.setProperty("--level", 0);
+  }
+  function startRecording() {
+    chunks = []; speechStarted = false; silenceMs = 0; recMs = 0; recording = true;
+    proc = ctx.createScriptProcessor(4096, 1, 1);
+    proc.onaudioprocess = (e) => {
+      if (!recording) return;
+      const input = e.inputBuffer.getChannelData(0);
+      chunks.push(new Float32Array(input));
+      const ms = (input.length / ctx.sampleRate) * 1000;
+      recMs += ms;
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      const rms = Math.sqrt(sum / input.length);
+      talk.style.setProperty("--level", Math.min(1, rms * 6).toFixed(2)); // drives the ring and ear flaps
+      if (rms > 0.025) { speechStarted = true; silenceMs = 0; }
+      else if (speechStarted) silenceMs += ms;
+      if (speechStarted && silenceMs > 1500) stopRecording(true);  // he stopped talking
+      else if (!speechStarted && recMs > 7000) stopRecording(true); // nothing said
+      else if (recMs > 15000) stopRecording(true);                 // cap each turn at 15 s
+    };
+    source.connect(proc);
+    proc.connect(ctx.destination);
+  }
+  function stopRecording(send) {
+    if (!recording) return;
+    recording = false;
+    try { proc.disconnect(); } catch {}
+    proc.onaudioprocess = null;
+    closeMic();
+    if (!send) { setState("idle"); return; }
+    if (!speechStarted) { sayLine("notHeard"); return; }
+    sendAudio(encodeWav(chunks, ctx.sampleRate));
+  }
+  function encodeWav(parts, rate) {
+    const len = parts.reduce((a, c) => a + c.length, 0);
+    const data = new Float32Array(len);
+    let off = 0;
+    for (const c of parts) { data.set(c, off); off += c.length; }
+    const target = 16000, ratio = rate / target, outLen = Math.floor(len / ratio);
+    const pcm = new Int16Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const a = Math.floor(i * ratio), b = Math.min(len, Math.max(a + 1, Math.floor((i + 1) * ratio)));
+      let s = 0;
+      for (let j = a; j < b; j++) s += data[j];
+      pcm[i] = Math.max(-1, Math.min(1, s / (b - a))) * 0x7fff;
+    }
+    const buf = new ArrayBuffer(44 + pcm.length * 2);
+    const v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, target, true); v.setUint32(28, target * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, "data"); v.setUint32(40, pcm.length * 2, true);
+    new Int16Array(buf, 44).set(pcm);
+    return buf;
+  }
+  function toBase64(buf) {
+    const bytes = new Uint8Array(buf);
+    let s = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+
+  // ---------- Talk to the server ----------
+  async function sendAudio(buf) {
+    setState("thinking");
+    showBubble("");
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-app-token": settings.token },
+        body: JSON.stringify({
+          audio: toBase64(buf),
+          history: history.slice(-8),
+          memories,
+          profile: { childName: settings.childName, age: settings.age, languages: settings.languages, companionName: settings.companionName },
+        }),
+      });
+      if (res.status === 401) throw new Error("auth");
+      if (!res.ok) throw new Error("http " + res.status);
+      const r = await res.json();
+      if (r.heard && r.reply) history.push({ heard: r.heard, reply: r.reply });
+      addLog(r);
+      addFacts(r.new_facts);
+      document.body.dataset.mood = r.mood || "happy";
+      tone(SFX.reply);
+      speak(r.reply, r.lang);
+    } catch (e) {
+      console.error(e);
+      const key = e.message === "auth" ? "auth" : (e instanceof TypeError || !navigator.onLine) ? "offline" : "error";
+      sayLine(key);
+    }
+  }
+  function addLog(r) {
+    log.push({ t: Date.now(), heard: r.heard || "", reply: r.reply || "", alert: !!r.parent_alert, mood: r.mood || "" });
+    if (log.length > 300) log = log.slice(-300);
+    store.set("log", log);
+  }
+  function addFacts(facts) {
+    if (!Array.isArray(facts)) return;
+    for (const f of facts.slice(0, 2)) {
+      const s = String(f).trim().slice(0, 120);
+      if (s && !memories.some((m) => m.toLowerCase() === s.toLowerCase())) memories.push(s);
+    }
+    if (memories.length > 40) memories = memories.slice(-40);
+    store.set("memories", memories);
+  }
+
+  // ---------- Time limits ----------
+  const remainingSeconds = () =>
+    Math.min(settings.dailyMinutes * 60 - usage.seconds, settings.sessionMinutes * 60 - sessionSeconds);
+  setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (Date.now() - lastInteraction > 30 * 60000) sessionSeconds = 0;  // a 30-minute break starts a new session
+    if (Date.now() - lastInteraction > 60000) return;                   // only count active use
+    if (usage.date !== today()) usage = { date: today(), seconds: 0 };
+    usage.seconds += 5; sessionSeconds += 5;
+    store.set("usage", usage);
+    // Gappu gets visibly sleepy in the last two minutes, so nap time isn't a surprise.
+    document.body.classList.toggle("sleepy", state !== "sleeping" && remainingSeconds() <= 120);
+  }, 5000);
+  function overLimit() {
+    if (usage.date !== today()) usage = { date: today(), seconds: 0 };
+    return usage.seconds >= settings.dailyMinutes * 60 || sessionSeconds >= settings.sessionMinutes * 60;
+  }
+  function checkLimit() { if (overLimit()) goToSleep(); }
+  function goToSleep() {
+    const n = settings.childName, c = settings.companionName;
+    const line = defaultLang() === "en"
+      ? `${n}, it's ${c}'s nap time now! Go play with Mummy and Papa. See you soon!`
+      : `${n}, अब ${c} के सोने का टाइम! मम्मी पापा के साथ खेलो। फिर मिलते हैं!`;
+    document.body.dataset.mood = "calm";
+    tone(SFX.sleep);
+    speak(line, defaultLang(), () => { setState("sleeping"); });
+  }
+
+  // ---------- The big button ----------
+  talk.addEventListener("click", async () => {
+    lastInteraction = Date.now();
+    unlockTTS();
+    if (state === "sleeping" || state === "thinking") return;
+    if (state === "listening") { stopRecording(true); return; }
+    if (state === "talking") speechSynthesis.cancel();
+    if (overLimit()) { goToSleep(); return; }
+    tone(SFX.tap);
+    setState("listening");
+    showBubble("");
+    try {
+      await openMic();
+      startRecording();
+    } catch (e) {
+      console.error(e);
+      closeMic();
+      sayLine("mic");
+    }
+  });
+
+  // Poking Gappu makes him giggle. Harmless, no server call.
+  let giggleTimer = null;
+  $("#face").addEventListener("click", () => {
+    if (state !== "idle" && state !== "talking") return;
+    lastInteraction = Date.now();
+    unlockTTS();
+    tone(SFX.giggle);
+    document.body.classList.add("giggle");
+    clearTimeout(giggleTimer);
+    giggleTimer = setTimeout(() => document.body.classList.remove("giggle"), 700);
+  });
+
+  // ---------- Grown-up area ----------
+  const sha = async (s) => {
+    const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("gappu:" + s));
+    return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  };
+  const show = (sel) => { $(sel).hidden = false; };
+  const hide = (sel) => { $(sel).hidden = true; };
+  function pauseEverything() {
+    if (recording) stopRecording(false);
+    speechSynthesis.cancel();
+    if (state !== "sleeping") setState("idle");
+  }
+
+  // Press and hold the lock for 1.2 s so little fingers don't open it.
+  let holdTimer = null;
+  const lock = $("#lock");
+  const cancelHold = () => { clearTimeout(holdTimer); lock.classList.remove("holding"); };
+  lock.addEventListener("pointerdown", () => {
+    lock.classList.add("holding");
+    holdTimer = setTimeout(() => {
+      cancelHold();
+      pauseEverything();
+      $("#pinCheck").reset();
+      $("#pinErr").textContent = "";
+      show("#pinSheet");
+      $("#pinCheck [name=pin]").focus();
+    }, 1200);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => lock.addEventListener(ev, cancelHold));
+  lock.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  $("#pinCancel").addEventListener("click", () => hide("#pinSheet"));
+  $("#pinCheck").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pin = e.target.pin.value.trim();
+    if ((await sha(pin)) === settings.pinHash) { hide("#pinSheet"); openParent(); }
+    else { $("#pinErr").textContent = "That PIN doesn't match. Try again."; e.target.pin.select(); }
+  });
+
+  function openParent() {
+    const f = $("#profileForm");
+    for (const k of ["childName", "age", "companionName", "languages", "sessionMinutes", "dailyMinutes", "token"]) f[k].value = settings[k];
+    f.sounds.checked = settings.sounds !== false;
+    $("#savedMsg").textContent = "";
+    renderUsage(); renderVoices(); renderMemories(); renderLog();
+    show("#parent");
+  }
+  function renderUsage() {
+    if (usage.date !== today()) usage = { date: today(), seconds: 0 };
+    const used = Math.round(usage.seconds / 60);
+    const pct = Math.min(100, Math.round((usage.seconds / (settings.dailyMinutes * 60)) * 100));
+    $("#usageText").textContent = `${settings.childName} has used ${used} of ${settings.dailyMinutes} minutes today.`;
+    const bar = $("#usageBar");
+    bar.style.width = pct + "%";
+    bar.className = pct >= 100 ? "full" : pct >= 80 ? "warn" : "";
+    $("#sessionPill").textContent = `This session: ${Math.round(sessionSeconds / 60)} of ${settings.sessionMinutes} min`;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const flagged = log.filter((it) => it.alert && it.t >= start.getTime()).length;
+    const fp = $("#flagPill");
+    fp.textContent = flagged ? `${flagged} flagged today` : "Nothing flagged today";
+    fp.classList.toggle("alert", flagged > 0);
+  }
+  function renderVoices() {
+    loadVoices();
+    const hi = pickVoice("hi"), en = pickVoice("en");
+    const name = (v) => (v ? `${v.name} (${v.lang})` : "none found");
+    $("#voiceInfo").textContent = `Hindi: ${name(hi)} · English: ${name(en)}`;
+  }
+  function renderMemories() {
+    const ul = $("#memList");
+    ul.textContent = "";
+    if (!memories.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "Nothing yet. Facts appear here as they chat, or add your own below.";
+      ul.append(li);
+      return;
+    }
+    memories.forEach((m, i) => {
+      const li = document.createElement("li");
+      const span = document.createElement("span");
+      span.textContent = m;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Delete";
+      btn.setAttribute("aria-label", "Delete: " + m);
+      btn.onclick = () => { memories.splice(i, 1); store.set("memories", memories); renderMemories(); };
+      li.append(span, btn);
+      ul.append(li);
+    });
+  }
+  const MOOD_ICON = { happy: "😊 happy", curious: "🤔 curious", calm: "😌 calm", silly: "😜 silly", caring: "🤗 caring" };
+  function ago(t) {
+    const s = (Date.now() - t) / 1000;
+    const d = new Date(t);
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === new Date().toDateString()) return "Today " + time;
+    return d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + time;
+  }
+  function renderLog() {
+    const ol = $("#logList");
+    ol.textContent = "";
+    const onlyFlagged = $("#flaggedOnly").checked;
+    const items = log.filter((it) => !onlyFlagged || it.alert).slice(-100).reverse();
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = onlyFlagged ? "Nothing flagged. That's good." : "No conversations yet.";
+      ol.append(li);
+      return;
+    }
+    for (const it of items) {
+      const li = document.createElement("li");
+      if (it.alert) li.className = "alert";
+      const meta = document.createElement("div"); meta.className = "meta";
+      const time = document.createElement("time"); time.textContent = ago(it.t);
+      const mood = document.createElement("span"); mood.className = "mood";
+      mood.textContent = it.alert ? "⚠️ needs attention" : (MOOD_ICON[it.mood] || "");
+      meta.append(time, mood);
+      const p1 = document.createElement("div");
+      const b1 = document.createElement("b"); b1.textContent = settings.childName + ": ";
+      p1.append(b1, document.createTextNode(it.heard || "(not clear)"));
+      const p2 = document.createElement("div");
+      const b2 = document.createElement("b"); b2.textContent = settings.companionName + ": ";
+      p2.append(b2, document.createTextNode(it.reply));
+      li.append(meta, p1, p2);
+      ol.append(li);
+    }
+  }
+  $("#flaggedOnly").addEventListener("change", renderLog);
+
+  $("#closeParent").addEventListener("click", () => { hide("#parent"); if (state !== "sleeping") setState("idle"); });
+  $("#resetToday").addEventListener("click", () => {
+    usage = { date: today(), seconds: 0 }; sessionSeconds = 0; store.set("usage", usage);
+    document.body.classList.remove("sleepy");
+    renderUsage();
+    setState("idle");
+  });
+  $("#profileForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const f = e.target;
+    Object.assign(settings, {
+      childName: f.childName.value.trim() || "Tosu",
+      age: parseInt(f.age.value, 10) || 4,
+      companionName: f.companionName.value.trim() || "Gappu",
+      languages: f.languages.value,
+      sessionMinutes: parseInt(f.sessionMinutes.value, 10) || 15,
+      dailyMinutes: parseInt(f.dailyMinutes.value, 10) || 30,
+      token: f.token.value.trim(),
+      sounds: f.sounds.checked,
+    });
+    saveSettings(); applyNames(); renderUsage();
+    $("#savedMsg").textContent = "Saved";
+  });
+  $("#testVoices").addEventListener("click", () => {
+    speechSynthesis.cancel();
+    const c = settings.companionName;
+    speechSynthesis.speak(utter(`नमस्ते! मैं ${c} हूँ। चलो, साथ में खेलते हैं।`, "hi"));
+    speechSynthesis.speak(utter(`Hello! I am ${c}. Let's play together.`, "en"));
+  });
+  $("#memForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = e.target.fact.value.trim();
+    if (v) { addFacts([v]); e.target.reset(); renderMemories(); }
+  });
+  $("#clearLog").addEventListener("click", () => {
+    if (!confirm("Delete all saved conversations on this iPad?")) return;
+    log = []; store.set("log", log); renderLog(); renderUsage();
+  });
+  $("#pinForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    settings.pinHash = await sha(e.target.pin.value.trim());
+    saveSettings(); e.target.reset();
+    alert("PIN changed.");
+  });
+
+  // First run
+  $("#setupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    settings.token = f.token.value.trim();
+    settings.pinHash = await sha(f.pin.value.trim());
+    settings.childName = f.childName.value.trim();
+    settings.companionName = f.companionName.value.trim();
+    settings.languages = f.languages.value;
+    saveSettings(); applyNames();
+    hide("#setup");
+    showBubble(`Namaste ${settings.childName}!`);
+  });
+
+  // ---------- Start ----------
+  applyNames();
+  if (!settings.token || !settings.pinHash) {
+    const f = $("#setupForm");
+    f.childName.value = settings.childName;
+    f.companionName.value = settings.companionName;
+    f.languages.value = settings.languages;
+    show("#setup");
+    setState("idle");
+  } else if (usage.date === today() && usage.seconds >= settings.dailyMinutes * 60) {
+    setState("sleeping");
+  } else {
+    setState("idle");
+    showBubble(`Namaste ${settings.childName}!`);
+  }
+
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

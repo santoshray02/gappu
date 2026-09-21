@@ -1,0 +1,8 @@
+name = "gappu"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# Serves public/index.html. Anything under /api/* goes to the worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
