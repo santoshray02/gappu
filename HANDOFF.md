@@ -47,6 +47,15 @@ git add -A && git commit -m "…" && git push
 Caddy only needs touching if the hostname or upstream port changes:
 `docker exec edx2_caddy caddy validate --config /etc/caddy/Caddyfile` then `… caddy reload …`.
 
+## Capacity (measured 2026-09-21)
+
+Scratch server, mock Gemini with 1.5 s latency (`GEMINI_BASE_URL` override), 215 KB requests:
+35 turns/s at 50 concurrent (205 MB), 318/s at 500 (946 MB), ceiling ~414/s at 1000 concurrent
+(1.6 GB, p95 4.2 s) = one CPU core. ~1.4 MB RSS per in-flight turn. At one turn per child per
+~20 s that is ~8,000 children talking at once. 2000 concurrent produced 500s (cause not
+investigated). Real ceiling is probably Gemini's RPM quota (unmeasured). A systemd
+`MemoryMax` guard should be ~1.5G, not lower.
+
 ## Provisioning a family
 
 ```bash

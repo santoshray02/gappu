@@ -289,7 +289,7 @@ async function converse(body, audio, env, stats) {
   };
 
   const model = env.GEMINI_MODEL || MODEL_DEFAULT;
-  let result = await askGemini(model, payload, env.GEMINI_API_KEY, stats);
+  let result = await askGemini(model, payload, env, stats);
   if (result.out && romanHindi(result.out)) {
     // The model wrote Hindi in Roman letters; ask once more, pointedly.
     contents.push({ role: "model", parts: [{ text: JSON.stringify(result.out) }] });
@@ -297,7 +297,7 @@ async function converse(body, audio, env, stats) {
       role: "user",
       parts: [{ text: "That reply is in Roman letters. Rewrite the same reply entirely in Devanagari script (हिंदी अक्षर), same JSON fields." }],
     });
-    const retry = await askGemini(model, payload, env.GEMINI_API_KEY, stats);
+    const retry = await askGemini(model, payload, env, stats);
     if (retry.out && !romanHindi(retry.out)) result = retry;
   }
   if (result.error) return result.error;
@@ -308,14 +308,14 @@ async function converse(body, audio, env, stats) {
 
 // Calls Gemini and parses the structured reply. Returns one of:
 // { error: Response } | { blocked: true } | { out: null } (bad JSON) | { out: object }
-async function askGemini(model, payload, key, stats) {
+async function askGemini(model, payload, env, stats) {
   stats.calls++;
-  let res = await callGemini(model, payload, key);
+  let res = await callGemini(model, payload, env);
   if (res.status === 400) {
     // Some models don't accept thinkingLevel; retry without it.
     delete payload.generationConfig.thinkingConfig;
     stats.calls++;
-    res = await callGemini(model, payload, key);
+    res = await callGemini(model, payload, env);
   }
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 300);
@@ -375,10 +375,11 @@ OUTPUT
 Return JSON only: heard (what ${p.childName} said, in the script he used), reply, lang ("hi" or "en"), mood (happy, curious, calm, silly or caring), new_facts, parent_alert.`;
 }
 
-function callGemini(model, payload, key) {
-  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+function callGemini(model, payload, env) {
+  const base = env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com"; // override: load tests only
+  return fetch(`${base}/v1beta/models/${model}:generateContent`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": key },
+    headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
     body: JSON.stringify(payload),
   });
 }

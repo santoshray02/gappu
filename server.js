@@ -67,6 +67,7 @@ const env = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   GOOGLE_AUTH_URL: process.env.GOOGLE_AUTH_URL,   // test overrides only
   GOOGLE_TOKEN_URL: process.env.GOOGLE_TOKEN_URL,
+  GEMINI_BASE_URL: process.env.GEMINI_BASE_URL,
   ENTITLEMENTS,
   ASSETS,
 };
