@@ -89,11 +89,14 @@ Sarvam's API data-training opt-out is **unverified** — confirm before sending 
    Screen (new icon), mic permission, Guided Access, the §5 safety checklist by voice. Fix
    anything iOS-specific (`@property` sky fade needs iOS 16.4+; `ScriptProcessorNode` is
    deprecated but works).
-   Also on the iPad: hear `LINES.subscription` (suspend the house family, tap, then resume)
+   **Tosu's iPad will show the wizard on next open** (no consent recorded yet); the token is
+   prefilled, the PIN must be set again. Also on the iPad: hear `LINES.subscription` (suspend the house family, tap, then resume)
    and see the Subscription card. Both were verified only by curl + headless Chrome.
 2. **M1 close-out** — provision 3 real families by CLI (PLAN M1 "done when").
-3. **Setup wizard + consent screen** in `index.html` (PLAN M2) — do not charge strangers
-   before this exists.
+3. **M2 timing** — the setup wizard + consent screen is built (verified in headless Chrome with
+   a fake mic, all steps and error paths). On the iPad: time a fresh setup (< 3 min target),
+   confirm Enhanced-voice detection and that a Home Screen app really has separate storage
+   from Safari (the wizard's first screen assumes it; unverified on device).
 
 Phase 0 (legal, Vertex terms) is not engineering but gates any paid launch; see PLAN.md.
 

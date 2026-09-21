@@ -175,7 +175,7 @@ start it before the trigger.
 |---|---|---|
 | M0 | Legal review + Vertex switch | Lawyer sign-off; `GEMINI_API_KEY` is a Vertex credential |
 | M1 | Entitlement layer + admin CLI | 3 families provisioned by CLI; a revoked token gets 402 on the iPad with the right spoken line |
-| M2 | Setup wizard + consent screen in the app | A parent completes setup in < 3 minutes without the README |
+| M2 | Setup wizard + consent screen in the app *(built 2026-09-21; timing on a real iPad not yet measured)* | A parent completes setup in < 3 minutes without the README |
 | M3 | School pilot via EdunodeX channel API | 20–30 families at one EdunodeX school, free for 30 days |
 | M4 | Razorpay subscription webhook | First self-renewing paid family |
 | P2 | Shell graduation | Only on trigger above |

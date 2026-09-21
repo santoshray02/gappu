@@ -74,7 +74,9 @@ const show = (f) => {
   const u = db.prepare("SELECT audio_s FROM usage_months WHERE family_id = ? AND month = ?").get(f.id, monthKey());
   const used = Math.round(((u && u.audio_s) || 0) / 60);
   const exp = f.expires_at ? f.expires_at.slice(0, 10) : "never";
-  console.log(`${f.id}  ${f.status.padEnd(9)} ${f.plan.padEnd(14)} expires ${exp}  ${used}/${Math.round(f.monthly_cap_s / 60)} min  ${f.label}  <${f.contact}>${f.channel ? "  " + f.channel : ""}`);
+  const c = db.prepare("SELECT max(ts) AS ts FROM events WHERE family_id = ? AND kind = 'consent'").get(f.id);
+  const consent = c && c.ts ? c.ts.slice(0, 10) : "none     ";
+  console.log(`${f.id}  ${f.status.padEnd(9)} ${f.plan.padEnd(14)} expires ${exp}  consent ${consent}  ${used}/${Math.round(f.monthly_cap_s / 60)} min  ${f.label}  <${f.contact}>${f.channel ? "  " + f.channel : ""}`);
 };
 
 switch (cmd) {

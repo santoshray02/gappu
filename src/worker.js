@@ -45,6 +45,10 @@ export default {
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
       return handleChat(request, env);
     }
+    if (url.pathname === "/api/consent") {
+      if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+      return handleConsent(request, env);
+    }
     if (url.pathname === "/api/me") {
       if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
       return handleMe(request, env);
@@ -89,6 +93,20 @@ async function handleMe(request, env) {
     used_s: used.audio_s,
     cap_s: family.monthly_cap_s,
   });
+}
+
+// Records that a parent accepted consent text version X on setup. Evidence for the
+// fiduciary; stores the version string only, nothing about the child.
+async function handleConsent(request, env) {
+  if (!env.ENTITLEMENTS) return json({ error: "No subscriptions on this server" }, 404);
+  const { family, error } = await resolveFamily(request, env);
+  if (error) return error;
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+  const version = clean(body && body.version, 20);
+  if (!/^\d{4}-\d\d-\d\d$/.test(version)) return json({ error: "Bad version" }, 400);
+  await env.ENTITLEMENTS.event(family.id, "consent", { version });
+  return json({ ok: true });
 }
 
 async function handleChat(request, env) {

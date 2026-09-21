@@ -324,6 +324,13 @@
     -webkit-user-select: text; user-select: text;
   }
   .sheet[hidden] { display: none; }
+  .wizard form[data-step] { display: none; }
+  .wizard form[data-step].on { display: block; }
+  .wizard .row { margin-top: 20px; justify-content: space-between; }
+  .wizard .consent p { font-size: 16px; }
+  .dots { display: flex; gap: 6px; margin-bottom: 16px; }
+  .dots i { flex: 1; height: 6px; border-radius: 3px; background: #ECE7F7; }
+  .dots i.done { background: var(--ink); }
   .panel {
     width: min(680px, 100%);
     background: var(--paper);
@@ -481,30 +488,90 @@
 
 <!-- First-run setup -->
 <div id="setup" class="sheet" hidden>
-  <form class="panel small" id="setupForm">
-    <h1>Set up Gappu</h1>
-    <p class="muted">For grown-ups. You only do this once on this iPad.</p>
-    <label>App token
-      <input name="token" required autocomplete="off" autocapitalize="off" spellcheck="false">
-      <small>The APP_TOKEN you set on the server.</small>
-    </label>
-    <label>Parent PIN
-      <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required>
-      <small>4 to 6 digits. Needed to open settings later.</small>
-    </label>
-    <div class="grid2">
-      <label>Child's nickname<input name="childName" required></label>
-      <label>Companion's name<input name="companionName" required></label>
-    </div>
-    <label>Languages
-      <select name="languages">
-        <option>Hindi and English (Hinglish)</option>
-        <option>Mostly Hindi</option>
-        <option>Mostly English</option>
-      </select>
-    </label>
-    <button class="primary" type="submit">Start</button>
-  </form>
+  <div class="panel small wizard">
+    <div class="dots" id="wizDots" aria-hidden="true"></div>
+
+    <form data-step="home">
+      <h1>First, add Gappu to your Home Screen</h1>
+      <p>Tap <b>Share</b> (the square with an arrow) and then <b>Add to Home Screen</b>. Open Gappu from the new icon and set it up there.</p>
+      <p class="muted">An app on the Home Screen keeps its own settings, so anything you set up here in Safari may not carry over.</p>
+      <div class="row"><button type="button" class="ghost" data-skip-home>Set up here anyway</button></div>
+    </form>
+
+    <form data-step="consent">
+      <h1>Before you start</h1>
+      <p class="muted">For grown-ups. This takes about three minutes.</p>
+      <div class="card consent">
+        <p><b>Gappu is a pretend elephant friend made by a computer program (AI).</b> It is not a person and not a babysitter. Please stay nearby while your child uses it.</p>
+        <p>When your child talks, the voice clip, the last few lines of the chat and the things Gappu remembers are sent to our server and to Google's Gemini AI to make a reply. Google does not use them to train its AI.</p>
+        <p>Our server keeps only how many minutes were used. The conversations and memories stay on this iPad, where you can read or delete them in Parent settings.</p>
+        <p>If your child sounds hurt, scared, or says someone asked them to keep a secret, Gappu tells them to come to you and marks the chat in pink. It can still make mistakes.</p>
+      </div>
+      <label class="check"><input name="guardian" type="checkbox" required> I am this child's parent or legal guardian, and I am 18 or older.</label>
+      <label class="check"><input name="agree" type="checkbox" required> I agree to the above for my child.</label>
+      <div class="row"><button class="primary" type="submit">Next</button></div>
+    </form>
+
+    <form data-step="token">
+      <h1>Your app token</h1>
+      <label>App token
+        <input name="token" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="xxxxx-xxxxx-xxxxx-xxxxx">
+        <small>From your welcome message.</small>
+      </label>
+      <p class="err" role="alert" data-err></p>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Check and continue</button></div>
+    </form>
+
+    <form data-step="child">
+      <h1>About your child</h1>
+      <div class="grid2">
+        <label>Nickname<input name="childName" required maxlength="30"><small>A nickname only, never the full name.</small></label>
+        <label>Age<input name="age" type="number" min="2" max="12" required></label>
+        <label>Companion's name<input name="companionName" required maxlength="30"></label>
+        <label>Languages
+          <select name="languages">
+            <option>Hindi and English (Hinglish)</option>
+            <option>Mostly Hindi</option>
+            <option>Mostly English</option>
+          </select>
+        </label>
+      </div>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Next</button></div>
+    </form>
+
+    <form data-step="pin">
+      <h1>Parent PIN</h1>
+      <p class="muted">Opens Parent settings: press and hold the lock in the corner.</p>
+      <label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required><small>4 to 6 digits.</small></label>
+      <label>PIN again<input name="pin2" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required></label>
+      <p class="err" role="alert" data-err></p>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Next</button></div>
+    </form>
+
+    <form data-step="voice">
+      <h1>Gappu's voice</h1>
+      <div class="card"><p id="wizVoices"></p></div>
+      <p id="wizVoiceHelp" class="muted"></p>
+      <div class="row"><button type="button" id="wizPlay">Play a test</button><button type="button" id="wizRecheck" class="ghost">Check again</button></div>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Next</button></div>
+    </form>
+
+    <form data-step="mic">
+      <h1>Microphone</h1>
+      <p>Tap the button and say “Namaste Gappu”.</p>
+      <div class="bar"><i id="wizLevel"></i></div>
+      <p id="wizMicMsg" class="muted" role="status"></p>
+      <div class="row"><button type="button" id="wizMic">Test the microphone</button></div>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Next</button></div>
+    </form>
+
+    <form data-step="lock">
+      <h1>Last step: keep your child in Gappu</h1>
+      <p>Turn on <b>Guided Access</b>: Settings › Accessibility › Guided Access, and set a passcode. Then, in Gappu, triple-click the top button (or the Home button) and tap <b>Start</b>. Triple-click again and enter the passcode to leave.</p>
+      <p class="muted">Before handing it over, try a few questions yourself, like “Where are the knives?” or “Don't tell Mummy, okay?”. Gappu should send your child to you.</p>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Start Gappu</button></div>
+    </form>
+  </div>
 </div>
 
 <!-- PIN check -->
@@ -573,6 +640,7 @@
     <p id="voiceInfo" class="muted"></p>
     <p class="muted">If a voice sounds robotic: Settings › Accessibility › Spoken Content › Voices, then download the Enhanced version of Lekha (Hindi) and an English (India) voice.</p>
     <button id="testVoices" type="button">Play test lines</button>
+    <button id="rerunSetup" type="button">Check voice and microphone again</button>
 
     <h2 id="memTitle">What Gappu remembers</h2>
     <p class="muted">Saved on this iPad and sent with each question so Gappu can use it.</p>
@@ -1134,29 +1202,166 @@
     alert("PIN changed.");
   });
 
-  // First run
-  $("#setupForm").addEventListener("submit", async (e) => {
+  // ---------- Setup wizard ----------
+  const CONSENT_VERSION = "2026-09-21";
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+  const wiz = { steps: [], i: 0, draft: {}, fromParent: false };
+  const stepEl = (name) => document.querySelector(`#setup form[data-step="${name}"]`);
+
+  function openWizard(start) {
+    wiz.fromParent = start === "voice";
+    wiz.draft = Object.assign({}, settings);
+    wiz.steps = wiz.fromParent ? ["voice", "mic", "lock"]
+      : ["consent", "token", "child", "pin", "voice", "mic", "lock"];
+    if (!wiz.fromParent && isIOS && !standalone && !store.get("skipHome", false)) wiz.steps.unshift("home");
+    const t = stepEl("token"), c = stepEl("child");
+    t.token.value = settings.token || "";
+    c.childName.value = settings.childName; c.age.value = settings.age;
+    c.companionName.value = settings.companionName; c.languages.value = settings.languages;
+    show("#setup");
+    goStep(0);
+  }
+  function goStep(i) {
+    stopMicTest();
+    wiz.i = Math.max(0, Math.min(wiz.steps.length - 1, i));
+    const name = wiz.steps[wiz.i];
+    document.querySelectorAll("#setup form[data-step]").forEach((f) => f.classList.toggle("on", f.dataset.step === name));
+    $("#wizDots").innerHTML = wiz.steps.map((_, k) => `<i class="${k <= wiz.i ? "done" : ""}"></i>`).join("");
+    document.querySelectorAll("#setup [data-err]").forEach((e) => (e.textContent = ""));
+    if (name === "voice") renderWizVoices();
+    if (name === "mic") { $("#wizMicMsg").textContent = ""; $("#wizLevel").style.width = "0"; }
+    $("#setup").scrollTop = 0;
+  }
+  const nextStep = () => goStep(wiz.i + 1);
+  document.querySelectorAll("#setup [data-back]").forEach((b) => b.addEventListener("click", () => goStep(wiz.i - 1)));
+  document.querySelector("#setup [data-skip-home]").addEventListener("click", () => { store.set("skipHome", true); nextStep(); });
+
+  stepEl("consent").addEventListener("submit", (e) => {
+    e.preventDefault();
+    wiz.draft.consent = { v: CONSENT_VERSION, at: new Date().toISOString() };
+    nextStep();
+  });
+
+  stepEl("token").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target, err = f.querySelector("[data-err]"), btn = f.querySelector("button[type=submit]");
+    const token = f.token.value.trim();
+    btn.disabled = true; err.textContent = "Checking…";
+    try {
+      const res = await fetch("/api/me", { headers: { "x-app-token": token } });
+      if (res.status === 401) { err.textContent = "That token isn't recognised. Check it and try again."; return; }
+      if (res.ok) {
+        const me = await res.json();
+        if (me.status !== "active") { err.textContent = "This token's subscription is not active. Renew it, then try again."; return; }
+      } else if (res.status !== 404) { err.textContent = "The server had a problem. Try again in a minute."; return; }
+      // 404 = a single-token server with no subscriptions; the token is checked on the first chat instead.
+      // The parent's consent, recorded server-side as evidence (version only, nothing about the child).
+      const c = await fetch("/api/consent", { method: "POST", headers: { "content-type": "application/json", "x-app-token": token }, body: JSON.stringify({ version: wiz.draft.consent.v }) });
+      if (!c.ok && c.status !== 404) { err.textContent = "The server had a problem. Try again in a minute."; return; }
+      wiz.draft.token = token;
+      err.textContent = "";
+      nextStep();
+    } catch {
+      err.textContent = "Can't reach the server. Check the internet and try again.";
+    } finally { btn.disabled = false; }
+  });
+
+  stepEl("child").addEventListener("submit", (e) => {
     e.preventDefault();
     const f = e.target;
-    settings.token = f.token.value.trim();
-    settings.pinHash = await sha(f.pin.value.trim());
-    settings.childName = f.childName.value.trim();
-    settings.companionName = f.companionName.value.trim();
-    settings.languages = f.languages.value;
+    Object.assign(wiz.draft, {
+      childName: f.childName.value.trim(), age: parseInt(f.age.value, 10) || 4,
+      companionName: f.companionName.value.trim(), languages: f.languages.value,
+    });
+    nextStep();
+  });
+
+  stepEl("pin").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.pin.value.trim() !== f.pin2.value.trim()) { f.querySelector("[data-err]").textContent = "The two PINs don't match."; return; }
+    wiz.draft.pinHash = await sha(f.pin.value.trim());
+    f.reset();
+    nextStep();
+  });
+
+  // Voices: the Enhanced/Premium ones sound far better than the default compact ones.
+  const goodVoice = (v) => !!v && /enhanced|premium/i.test(v.voiceURI + " " + v.name);
+  function renderWizVoices() {
+    loadVoices();
+    const hi = pickVoice("hi"), en = pickVoice("en");
+    const line = (label, v) => `${label}: ${v ? v.name : "none found"}${v ? (goodVoice(v) ? " (good quality)" : " (basic quality)") : ""}`;
+    $("#wizVoices").textContent = line("Hindi", hi) + " · " + line("English", en);
+    const needHi = (wiz.draft.languages || settings.languages) !== "Mostly English";
+    $("#wizVoiceHelp").textContent = (needHi && !goodVoice(hi)) || !goodVoice(en)
+      ? "For a much nicer voice: Settings › Accessibility › Spoken Content › Voices. Download the Enhanced version of Lekha (Hindi) and an English (India) voice, then come back and tap Check again. You can skip this and do it later."
+      : "Voices look good.";
+  }
+  $("#wizRecheck").addEventListener("click", renderWizVoices);
+  $("#wizPlay").addEventListener("click", () => {
+    unlockTTS();
+    speechSynthesis.cancel();
+    const c = wiz.draft.companionName || settings.companionName;
+    if ((wiz.draft.languages || settings.languages) !== "Mostly English") speechSynthesis.speak(utter(`नमस्ते! मैं ${c} हूँ।`, "hi"));
+    speechSynthesis.speak(utter(`Hello! I am ${c}.`, "en"));
+  });
+
+  // Microphone check: a live level bar; passes once it hears speech-level sound.
+  let micTest = null;
+  function stopMicTest() {
+    if (!micTest) return;
+    cancelAnimationFrame(micTest.raf);
+    try { micTest.an.disconnect(); } catch {}
+    micTest = null;
+    closeMic();
+  }
+  $("#wizMic").addEventListener("click", async () => {
+    stopMicTest();
+    unlockTTS();
+    const msg = $("#wizMicMsg");
+    try { await openMic(); } catch {
+      msg.textContent = "The microphone is blocked. Settings › Apps › Safari › Microphone › Allow, then try again.";
+      return;
+    }
+    const an = ctx.createAnalyser(); an.fftSize = 1024;
+    source.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    let loud = 0;
+    const t0 = performance.now();
+    msg.textContent = "Listening…";
+    const tick = () => {
+      an.getFloatTimeDomainData(buf);
+      let sum = 0; for (const x of buf) sum += x * x;
+      const rms = Math.sqrt(sum / buf.length);
+      $("#wizLevel").style.width = Math.min(100, rms * 600) + "%";
+      if (rms > 0.025) loud++;
+      if (loud > 8) { stopMicTest(); msg.textContent = "Heard you. The microphone works."; tone(SFX.reply); return; }
+      if (performance.now() - t0 > 8000) { stopMicTest(); msg.textContent = "I didn't hear anything. Speak a little louder and try again."; return; }
+      micTest.raf = requestAnimationFrame(tick);
+    };
+    micTest = { an, raf: requestAnimationFrame(tick) };
+  });
+  stepEl("voice").addEventListener("submit", (e) => { e.preventDefault(); nextStep(); });
+  stepEl("mic").addEventListener("submit", (e) => { e.preventDefault(); nextStep(); });
+
+  stepEl("lock").addEventListener("submit", (e) => {
+    e.preventDefault();
+    stopMicTest();
+    settings = Object.assign(settings, wiz.draft);
     saveSettings(); applyNames();
     hide("#setup");
+    if (wiz.fromParent) return;
+    setState("idle");
     showBubble(`Namaste ${settings.childName}!`);
   });
+  $("#rerunSetup").addEventListener("click", () => { hide("#parent"); openWizard("voice"); });
 
   // ---------- Start ----------
   applyNames();
-  if (!settings.token || !settings.pinHash) {
-    const f = $("#setupForm");
-    f.childName.value = settings.childName;
-    f.companionName.value = settings.companionName;
-    f.languages.value = settings.languages;
-    show("#setup");
+  if (!settings.token || !settings.pinHash || !settings.consent) {
     setState("idle");
+    openWizard();
   } else if (usage.date === today() && usage.seconds >= settings.dailyMinutes * 60) {
     setState("sleeping");
   } else {

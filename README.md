@@ -39,11 +39,10 @@ The last command prints your address, something like `https://gappu.yourname.wor
 ## 3. Set up the iPad
 
 1. Update the iPad: Settings > General > Software Update.
-2. Download a good Hindi voice: Settings > Accessibility > Spoken Content > Voices > Hindi, then pick **Lekha** and download the Enhanced version. Do the same for English (India).
-3. Open your Gappu address in Safari and fill in the setup screen: the app token, a parent PIN, and Tosu's details.
-4. Tap Share > **Add to Home Screen**. Open Gappu from the new icon from now on.
-5. Allow the microphone permanently: Settings > Apps > Safari > Microphone > **Allow**. Otherwise the iPad asks every time.
-6. Test it yourself before handing it over (see step 5 below).
+2. Open your Gappu address in Safari, tap Share > **Add to Home Screen**, and open Gappu from the new icon. Set it up there: a Home Screen app keeps its own storage, separate from Safari.
+3. The setup wizard walks through consent, the app token, your child's nickname, a parent PIN, a voice check (download the Enhanced Lekha voice if it says "basic quality") and a microphone check. Parent settings › "Check voice and microphone again" repeats the last two.
+4. Allow the microphone permanently: Settings > Apps > Safari > Microphone > **Allow**. Otherwise the iPad asks every time.
+5. Test it yourself before handing it over (see step 5 below).
 
 ## 4. Lock the iPad to Gappu (Guided Access)
 

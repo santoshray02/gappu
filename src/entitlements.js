@@ -65,6 +65,7 @@ export function createStore(db) {
       turns = turns + excluded.turns,
       audio_s = audio_s + excluded.audio_s,
       gemini_calls = gemini_calls + excluded.gemini_calls`);
+  const logEvent = db.prepare("INSERT INTO events (ts, family_id, kind, detail) VALUES (?, ?, ?, ?)");
   const recent = new Map(); // family id -> timestamps of turns in the last minute
 
   return {
@@ -77,6 +78,10 @@ export function createStore(db) {
       if (ok) ts.push(now);
       recent.set(familyId, ts);
       return ok;
+    },
+    // Audit trail (consent, provisioning). Never content.
+    event(familyId, kind, detail = {}) {
+      logEvent.run(new Date().toISOString(), familyId, kind, JSON.stringify(detail));
     },
     record(familyId, { turns = 0, audio_s = 0, gemini_calls = 0 }) {
       bump.run(familyId, monthKey(), turns, audio_s, gemini_calls);
