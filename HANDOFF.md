@@ -11,7 +11,7 @@ stand and what to do next".
 |---|---|
 | Product | Working end-to-end. Child taps → audio → `/api/chat` → Gemini 3.1 Flash-Lite → Devanagari/English reply spoken by the device. |
 | Production | **https://gappu.in1.xentovia.ai** — `gappu.service` (systemd, Node 18, `server.js`) bound to `172.18.0.1:10800`, fronted by the shared `edx2_caddy` container via `~/projects/edunodex/extra-sites/gappu.caddy`. Let's Encrypt cert, auto-renews. |
-| Secrets | `~/projects/gappu/.env` (mode 600, untracked): `GEMINI_API_KEY` (AI Studio key, **free/paid tier unverified — check billing is on before Tosu uses it daily**), `APP_TOKEN`, `PORT`, `HOST`. The current app token is in that file; it is what parents type on the iPad setup screen. |
+| Secrets | `~/projects/gappu/.env` (mode 600, untracked): `GEMINI_API_KEY` (AI Studio key, **free/paid tier unverified — check billing is on before Tosu uses it daily**), `PORT`, `HOST`, `GOOGLE_CLIENT_ID`/`SECRET` (EdunodeX's OAuth client). `APP_TOKEN` was deleted 2026-09-21; parents sign in with Google. |
 | Cloudflare path | Still works from the same repo (`npx wrangler deploy`) but is **not** deployed anywhere. `wrangler.toml` is kept for that option. |
 | Client | `public/index.html` v2: scene (sun/moon/stars/clouds/flowers/butterfly), time-of-day sky, mood expressions, live mic level, sleepy-before-nap, sound cues, PWA (manifest, icons, `sw.js`). Verified in desktop Chrome, all states, zero console errors. **Not yet verified on a real iPad.** |
 | Server | `src/worker.js`: Devanagari enforcement (stronger prompt + `romanHindi()` one-shot retry); Gemini call factored into `askGemini()`. |
@@ -22,11 +22,10 @@ stand and what to do next".
 ## Verify in 60 seconds
 
 ```bash
-systemctl is-active gappu && journalctl -u gappu -n 5 --no-pager
-curl -s -o /dev/null -w "%{http_code}\n" https://gappu.in1.xentovia.ai/            # 200
-curl -s -X POST https://gappu.in1.xentovia.ai/api/chat -d '{}' -H 'content-type: application/json'   # {"error":"Unauthorized"}
-# full round trip (16 kHz mono WAV, base64):
-TOKEN=$(grep APP_TOKEN .env | cut -d= -f2)
+./manage.sh test      # every entitlement path against a mock Gemini (no network)
+./manage.sh restart   # or just the health check part: page 200, unauthenticated chat 401, google status
+./manage.sh status    # service + families
+# Real-Gemini round trip needs a signed-in device token (the old APP_TOKEN is gone). With one in $TOKEN:
 printf '{"audio":"%s","profile":{"childName":"Tosu","age":4,"languages":"Hindi and English (Hinglish)","companionName":"Gappu"}}' "$(base64 -w0 some.wav)" > /tmp/req.json
 curl -s -X POST https://gappu.in1.xentovia.ai/api/chat -H "content-type: application/json" -H "x-app-token: $TOKEN" --data-binary @/tmp/req.json
 ```
