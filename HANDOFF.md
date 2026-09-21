@@ -55,11 +55,14 @@ npm run admin -- create --email parent@gmail.com --label "Sharma family" --plan 
 npm run admin -- list | usage | devices <id> | revoke-device <prefix> | renew <id> --months 1 | suspend|resume|revoke <id>
 ```
 
-**Google sign-in is built but OFF** until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are in
-`.env` (Web OAuth client in its own Google Cloud project, redirect URI
-`https://gappu.in1.xentovia.ai/auth/google/callback`, scopes `openid email`), then
-`sudo systemctl restart gappu`. Until then the wizard shows the legacy token field. Verified
-end-to-end against a mock Google in headless Chrome; never against real Google or on an iPad.
+**Google sign-in is ON** (2026-09-21) using **EdunodeX's OAuth client** (credentials copied from
+`~/projects/edunodex/.env` into Gappu's `.env`; redirect URI
+`https://gappu.in1.xentovia.ai/auth/google/callback` added to that client). Google's consent screen
+therefore shows EdunodeX's name/logo. To rebrand: create a Gappu client in the **same** GCP
+project (Google `sub` is shared across clients in one project, so bound families keep working),
+swap the two `.env` values, restart. Rotating EdunodeX's secret breaks Gappu sign-in too.
+Verified: Google accepts the redirect URI and shows its sign-in page; the full flow was tested
+only against a mock Google. First real sign-in not yet done.
 Tosu's family is invited as `rayskumar02@gmail.com`; its old token stays valid as a `legacy`
 device until revoked.
 
