@@ -54,10 +54,16 @@ npm run admin -- create --label "Sharma family" --contact +91… --plan trial   
 npm run admin -- list | usage | renew <id> --months 1 | suspend|resume|revoke|rotate <id>
 ```
 
-## LLM stack (decision pending, 2026-09-21)
+## LLM stack
 
-Google's terms forbid Gemini for any app used by under-18s (PLAN Phase 0). Tosu's personal use
-is the only thing on it now; no paid family may go on Gemini. Candidate replacement, per turn
+**Decision 2026-09-21 (owner): v1 ships on Gemini 3.1 Flash-Lite**, accepting the terms risk below
+(possible account suspension). Mitigations owed by the owner: confirm the key is on the **paid**
+tier (free tier = human review/training on Tosu's audio), and keep it in a Google account/project
+used for nothing else. The only Gemini call site is `askGemini()` in `src/worker.js`; the
+alternatives below are the switch path if Google objects or before scaling.
+
+
+Google's terms forbid Gemini for any app used by under-18s (PLAN Phase 0). Alternatives, per turn
 (list prices verified 2026-09-21; token/char counts assumed: 5 s speech, ~2k prompt tokens,
 ~150 output tokens, ~180-char reply):
 
@@ -71,6 +77,9 @@ is the only thing on it now; no paid family may go on Gemini. Candidate replacem
 
 At 30 turns/day: STT + Haiku + device TTS ≈ ₹130–260/month (fits ₹349); adding Bulbul
 ≈ +₹500/month (does not). Gemini Live API is moot (same terms) and ~10–15× flash-lite cost.
+OpenAI (allowed for under-13 only with zero data retention, which needs OpenAI sales approval),
+standard list prices 2026-09-21: `gpt-4o-mini-transcribe` $0.003/min + `gpt-5.4-nano` ($0.20/$1.25
+per M) ≈ ₹0.05/turn; `gpt-audio-mini` one-call ≈ ₹0.18/turn. Set reasoning effort minimal.
 Spike: run README §5 safety clips through STT → Haiku and STT → Sarvam 105B; measure latency.
 Sarvam's API data-training opt-out is **unverified** — confirm before sending child audio.
 

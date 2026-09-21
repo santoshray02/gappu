@@ -34,6 +34,7 @@ XV shell tenant app. Reasons, in order:
       incl. Live API) must be replaced before any paid launch. Anthropic's API permits
       minors-facing products with safeguards (support.claude.com article 9307344); Sarvam permits
       under-18 use with verifiable parental consent and is India-resident. See HANDOFF "LLM stack".
+      **Owner decision 2026-09-21:** v1 stays on Gemini 3.1 Flash-Lite with this risk accepted.
 - [ ] Terms of service: "pretend friend, not supervision", safety-incident process, refund policy.
 - [ ] Decide the legal seller entity and GST treatment (Xentovia).
 
