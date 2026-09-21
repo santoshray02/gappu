@@ -131,8 +131,9 @@ Phase 0 (legal, Vertex terms) is not engineering but gates any paid launch; see 
   SameSite=Lax cookie at start and require it at callback. Watch `gappu-admin devices`.
 
 - `pkill -f server.js` kills **production** too. Kill scratch servers (`PORT=10899 GAPPU_DB=<tmp>`) by PID.
-- `/usr/bin/node` is v18 (no `node:sqlite`); the unit's `ExecStart` pins the nvm v22 binary.
-  An `nvm uninstall 22.23.2` would take production down.
+- `/usr/bin/node` is v18 (no `node:sqlite`). The unit and the backup cron use `/opt/node-24`
+  (v24.21.0, a symlink); nvm is no longer involved. The previous unit is saved at
+  `~/backups/gappu/gappu.service.pre-node24`.
 
 - `gappu.in1.edunodex.in` **cannot** get a cert from `extra-sites/`: that wildcard is on-demand
   TLS whose `ask` callback (`backend/app/main.py::caddy_check_domain`) only approves tenants +

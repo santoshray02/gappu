@@ -48,7 +48,7 @@ const ASSETS = {
   },
 };
 
-// Per-family tokens from SQLite (Node 22+) unless GAPPU_DB=off, which restores the
+// Per-family tokens from SQLite (Node 24 LTS; 22.13+ minimum for node:sqlite) unless GAPPU_DB=off, which restores the
 // single APP_TOKEN mode. With the DB on, APP_TOKEN is deliberately NOT passed to the
 // worker, so a wiring mistake fails closed (401) instead of falling back to an uncapped token.
 // If the DB can't open, the process dies at startup and systemd keeps retrying: loud.

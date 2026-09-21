@@ -1,5 +1,5 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
-// Provision and inspect Gappu families. Runs on the host next to server.js (Node 22+).
+// Provision and inspect Gappu families. Runs on the host next to server.js (Node 24 LTS; 22.13+ minimum for node:sqlite).
 // Changes take effect on the very next request: the server reads SQLite directly, no cache.
 //
 //   gappu-admin create --email parent@gmail.com --label "Sharma family" [--contact +91...]

@@ -1,4 +1,4 @@
-// Entitlement store for self-hosting (Node 22+, node:sqlite). Not used on Cloudflare.
+// Entitlement store for self-hosting (Node 24 LTS; 22.13+ minimum for node:sqlite). Not used on Cloudflare.
 // Families (plan, status, cap, the parent's Google email), their signed-in devices,
 // and monthly usage counts.
 // Never store content here: no audio, no heard/reply, no memories, no alerts. Counts only.
