@@ -50,9 +50,18 @@ Caddy only needs touching if the hostname or upstream port changes:
 ## Provisioning a family
 
 ```bash
-npm run admin -- create --label "Sharma family" --contact +91… --plan trial     # prints token once
-npm run admin -- list | usage | renew <id> --months 1 | suspend|resume|revoke|rotate <id>
+npm run admin -- create --email parent@gmail.com --label "Sharma family" --plan trial
+# the parent taps "Sign in with Google" in the wizard with that Gmail address
+npm run admin -- list | usage | devices <id> | revoke-device <prefix> | renew <id> --months 1 | suspend|resume|revoke <id>
 ```
+
+**Google sign-in is built but OFF** until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are in
+`.env` (Web OAuth client in its own Google Cloud project, redirect URI
+`https://gappu.in1.xentovia.ai/auth/google/callback`, scopes `openid email`), then
+`sudo systemctl restart gappu`. Until then the wizard shows the legacy token field. Verified
+end-to-end against a mock Google in headless Chrome; never against real Google or on an iPad.
+Tosu's family is invited as `rayskumar02@gmail.com`; its old token stays valid as a `legacy`
+device until revoked.
 
 ## LLM stack
 

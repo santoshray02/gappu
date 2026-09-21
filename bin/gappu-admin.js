@@ -2,11 +2,15 @@
 // Provision and inspect Gappu families. Runs on the host next to server.js (Node 22+).
 // Changes take effect on the very next request: the server reads SQLite directly, no cache.
 //
-//   gappu-admin create --label "Tosu's family" --contact +91... [--plan trial|monthly|yearly|channel_school]
-//                      [--months N | --no-expiry] [--cap-min N] [--channel edunodex:<school>] [--token <existing>]
+//   gappu-admin create --email parent@gmail.com --label "Sharma family" [--contact +91...]
+//                      [--plan trial|monthly|yearly|channel_school] [--months N | --no-expiry]
+//                      [--cap-min N] [--channel edunodex:<school>]
+//        The parent then taps "Sign in with Google" on the iPad with that Gmail address.
+//   gappu-admin set-email <id> <email>      change who may sign in (unbinds the old Google account)
+//   gappu-admin devices <id>                signed-in iPads
+//   gappu-admin revoke-device <hash-prefix> sign one iPad out (e.g. lost or given away)
 //   gappu-admin renew <id> [--months 1] [--plan monthly]
 //   gappu-admin suspend|resume|revoke <id>
-//   gappu-admin rotate <id>                 new token, old one stops working
 //   gappu-admin set-cap <id> <minutes>
 //   gappu-admin list
 //   gappu-admin usage [<id>] [--month 2026-09]
@@ -14,12 +18,12 @@
 //
 // Labels and contacts are for billing/support only. Never put a child's full name in a label.
 
-import { randomInt, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { readdirSync, unlinkSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
-import { openDb, sha256Hex, monthKey, PLANS, DEFAULT_CAP_S } from "../src/entitlements.js";
+import { openDb, monthKey, PLANS, DEFAULT_CAP_S } from "../src/entitlements.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const db = openDb(process.env.GAPPU_DB || path.join(ROOT, "data", "gappu.db"));
@@ -39,11 +43,12 @@ const now = () => new Date().toISOString();
 const event = (id, kind, detail = {}) =>
   db.prepare("INSERT INTO events (ts, family_id, kind, detail) VALUES (?, ?, ?, ?)").run(now(), id, kind, JSON.stringify(detail));
 
-// Typed by a parent on an iPad: lowercase, no look-alikes (0/o, 1/l/i), grouped. ~99 bits.
-const ALPHA = "23456789abcdefghjkmnpqrstuvwxyz";
-function newToken() {
-  const c = Array.from({ length: 20 }, () => ALPHA[randomInt(ALPHA.length)]).join("");
-  return c.match(/.{5}/g).join("-");
+function email(v) {
+  const e = typeof v === "string" ? v.trim().toLowerCase() : "";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) die("need a valid --email");
+  const other = db.prepare("SELECT id FROM families WHERE email = ?").get(e);
+  if (other) die(`${e} already belongs to ${other.id}`);
+  return e;
 }
 const newId = () => "fam_" + randomBytes(5).toString("hex");
 
@@ -76,17 +81,15 @@ const show = (f) => {
   const exp = f.expires_at ? f.expires_at.slice(0, 10) : "never";
   const c = db.prepare("SELECT max(ts) AS ts FROM events WHERE family_id = ? AND kind = 'consent'").get(f.id);
   const consent = c && c.ts ? c.ts.slice(0, 10) : "none     ";
-  console.log(`${f.id}  ${f.status.padEnd(9)} ${f.plan.padEnd(14)} expires ${exp}  consent ${consent}  ${used}/${Math.round(f.monthly_cap_s / 60)} min  ${f.label}  <${f.contact}>${f.channel ? "  " + f.channel : ""}`);
+  const devs = db.prepare("SELECT count(*) AS n FROM devices WHERE family_id = ? AND revoked_at IS NULL").get(f.id).n;
+  console.log(`${f.id}  ${f.status.padEnd(9)} ${f.plan.padEnd(14)} expires ${exp}  consent ${consent}  ${devs} iPad${devs === 1 ? " " : "s"}  ${used}/${Math.round(f.monthly_cap_s / 60)} min  ${f.label}  ${f.email || "(no email)"}${f.contact !== f.email ? "  <" + f.contact + ">" : ""}${f.channel ? "  " + f.channel : ""}`);
 };
 
 switch (cmd) {
   case "create": {
-    if (typeof flags.label !== "string" || typeof flags.contact !== "string") die("create needs --label and --contact");
+    if (typeof flags.label !== "string") die("create needs --email and --label");
+    const e = email(flags.email);
     const p = plan(flags.plan || "trial");
-    const token = typeof flags.token === "string" ? flags.token.trim() : newToken();
-    if (token.length < 16) die("--token must be at least 16 characters");
-    const hash = sha256Hex(token);
-    if (db.prepare("SELECT 1 FROM families WHERE token_hash = ?").get(hash)) die("That token already belongs to a family");
     let expires = null;
     if (!flags["no-expiry"]) {
       if (p === "trial" && flags.months === undefined) expires = new Date(Date.now() + 14 * 86400_000).toISOString();
@@ -95,12 +98,38 @@ switch (cmd) {
     const cap = flags["cap-min"] === undefined ? DEFAULT_CAP_S : Math.round(Number(flags["cap-min"]) * 60);
     if (!(cap > 0)) die("--cap-min must be a positive number");
     const id = newId();
-    db.prepare(`INSERT INTO families (id, label, contact, plan, status, token_hash, monthly_cap_s, channel, created_at, expires_at)
-                VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`)
-      .run(id, flags.label, flags.contact, p, hash, cap, typeof flags.channel === "string" ? flags.channel : null, now(), expires);
-    event(id, "create", { plan: p, expires_at: expires, cap_s: cap, adopted_token: typeof flags.token === "string" });
+    db.prepare(`INSERT INTO families (id, label, contact, email, plan, status, monthly_cap_s, channel, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`)
+      .run(id, flags.label, typeof flags.contact === "string" ? flags.contact : e, e, p, cap,
+        typeof flags.channel === "string" ? flags.channel : null, now(), expires);
+    event(id, "create", { plan: p, expires_at: expires, cap_s: cap });
     show(family(id));
-    if (typeof flags.token !== "string") console.log(`\nToken (shown once, type it on the iPad): ${token}`);
+    console.log(`\nTell the parent: open Gappu on the iPad and tap "Sign in with Google" with ${e}.`);
+    break;
+  }
+  case "set-email": {
+    const f = family(args[0]);
+    const e = email(args[1]);
+    set(f.id, { email: e, google_sub: null });
+    event(f.id, "set-email", {});
+    show(family(f.id));
+    break;
+  }
+  case "devices": {
+    const f = family(args[0]);
+    for (const d of db.prepare("SELECT * FROM devices WHERE family_id = ? ORDER BY created_at").all(f.id)) {
+      console.log(`${d.token_hash.slice(0, 12)}  ${d.via.padEnd(6)}  added ${d.created_at.slice(0, 10)}  last seen ${(d.last_seen_at || "never").slice(0, 16)}${d.revoked_at ? "  REVOKED " + d.revoked_at.slice(0, 10) : ""}`);
+    }
+    break;
+  }
+  case "revoke-device": {
+    const prefix = String(args[0] || "");
+    if (!/^[0-9a-f]{8,64}$/.test(prefix)) die("revoke-device <hash-prefix of 8+ hex chars> (see: devices <id>)");
+    const rows = db.prepare("SELECT * FROM devices WHERE token_hash LIKE ? AND revoked_at IS NULL").all(prefix + "%");
+    if (rows.length !== 1) die(`${rows.length} active devices match ${prefix}`);
+    db.prepare("UPDATE devices SET revoked_at = ? WHERE token_hash = ?").run(now(), rows[0].token_hash);
+    event(rows[0].family_id, "revoke-device", { device: prefix });
+    console.log(`Signed out ${prefix} (${rows[0].family_id}).`);
     break;
   }
   case "renew": {
@@ -119,15 +148,6 @@ switch (cmd) {
     set(f.id, { status });
     event(f.id, cmd, { status });
     show(family(f.id));
-    break;
-  }
-  case "rotate": {
-    const f = family(args[0]);
-    const token = newToken();
-    set(f.id, { token_hash: sha256Hex(token) });
-    event(f.id, "rotate");
-    show(family(f.id));
-    console.log(`\nNew token (shown once, the old one stopped working): ${token}`);
     break;
   }
   case "set-cap": {
@@ -163,5 +183,5 @@ switch (cmd) {
     break;
   }
   default:
-    die("usage: gappu-admin create|renew|suspend|resume|revoke|rotate|set-cap|list|usage|backup  (see header of bin/gappu-admin.js)");
+    die("usage: gappu-admin create|set-email|devices|revoke-device|renew|suspend|resume|revoke|set-cap|list|usage|backup  (see header of bin/gappu-admin.js)");
 }

@@ -8,6 +8,7 @@
 //   env.ENTITLEMENTS set (self-hosted, server.js + SQLite): per-family tokens with plan,
 //     status, expiry, monthly audio cap and a rate limit. APP_TOKEN is not used.
 //   otherwise (Cloudflare): the single APP_TOKEN, no limits.
+// Parents sign in with Google (self-hosted only): GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET.
 
 const MODEL_DEFAULT = "gemini-3.1-flash-lite";
 const MAX_AUDIO_B64 = 2_000_000; // about 1.5 MB of WAV, roughly 45 s at 16 kHz
@@ -45,6 +46,7 @@ export default {
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
       return handleChat(request, env);
     }
+    if (url.pathname.startsWith("/auth/google/")) return handleGoogle(request, env, url);
     if (url.pathname === "/api/consent") {
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
       return handleConsent(request, env);
@@ -87,11 +89,120 @@ async function handleMe(request, env) {
   if (error) return error;
   const used = await env.ENTITLEMENTS.usage(family.id);
   return json({
+    email: family.email || null,
     plan: family.plan,
     status: family.status,
     expires_at: family.expires_at,
     used_s: used.audio_s,
     cap_s: family.monthly_cap_s,
+  });
+}
+
+// ---------- Sign in with Google ----------
+// Server-side authorization-code flow instead of Google's popup/FedCM button, because a popup
+// can't open in an iOS Home Screen app. The iPad keeps a random secret S and sends only
+// sha256(S) as the OAuth state; whichever browser Google returns to (the Home Screen app, an
+// in-app browser, the parent's phone) completes the login, and the iPad collects its device
+// token by proving it holds S (POST /auth/google/poll). S never appears in a URL or a log.
+const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN = "https://oauth2.googleapis.com/token";
+const STATE_RE = /^[0-9a-f]{64}$/;
+
+async function handleGoogle(request, env, url) {
+  const store = env.ENTITLEMENTS;
+  const enabled = !!(store && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  if (url.pathname === "/auth/google/status") return json({ enabled });
+  if (!enabled) return json({ error: "Google sign-in is not configured" }, 404);
+  const redirectUri = `${url.origin}/auth/google/callback`;
+  const step = url.pathname.slice("/auth/google/".length);
+
+  if (step === "start" && request.method === "GET") {
+    const state = url.searchParams.get("s") || "";
+    if (!STATE_RE.test(state)) return page("That sign-in link is broken. Go back to Gappu and tap Sign in again.", 400);
+    if (!(await store.beginLogin(state))) return page("Too many sign-ins right now. Try again in a few minutes.", 503);
+    const q = new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri, response_type: "code",
+      scope: "openid email", state, prompt: "select_account",
+    });
+    return new Response(null, { status: 302, headers: { location: `${env.GOOGLE_AUTH_URL || GOOGLE_AUTH}?${q}`, "cache-control": "no-store" } });
+  }
+
+  if (step === "callback" && request.method === "GET") {
+    const state = url.searchParams.get("state") || "";
+    if (!STATE_RE.test(state) || !(await store.hasLogin(state))) {
+      return page("This sign-in has expired. Go back to Gappu and tap Sign in again.", 400);
+    }
+    const code = url.searchParams.get("code");
+    if (!code) { await store.failLogin(state, "cancelled"); return page("Sign-in was cancelled. Go back to Gappu to try again.", 400); }
+    const id = await googleIdentity(code, redirectUri, env);
+    if (!id) { await store.failLogin(state, "google_error"); return page("Google sign-in didn't work. Go back to Gappu and try again.", 502); }
+    const r = await store.completeLogin(state, id);
+    if (r.error === "not_invited") return page(`${id.email} isn't invited to Gappu yet. Sign in with the Gmail address you gave us, or ask us to add this one.`, 403);
+    if (r.error === "wrong_account") return page("This email is linked to a different Google account. Please contact us.", 403);
+    if (r.error) return page("This sign-in has expired. Go back to Gappu and tap Sign in again.", 400);
+    return page(`Signed in as ${r.email}. Go back to Gappu to finish setting up.`, 200, true);
+  }
+
+  if (step === "poll" && request.method === "POST") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+    const secret = typeof body.secret === "string" ? body.secret : "";
+    if (!/^[0-9a-f]{64}$/.test(secret)) return json({ error: "Bad secret" }, 400);
+    const r = await store.pollLogin(await sha256Hex(secret));
+    if (r.status === "done") return json({ token: r.token, email: r.email });
+    if (r.status === "pending") return json({ pending: true }, 202);
+    if (r.status === "error") return json({ error: r.error }, 403);
+    return json({ error: "expired" }, 404);
+  }
+  return json({ error: "Not found" }, 404);
+}
+
+// Exchanges the code for an ID token. The token comes straight from Google's token endpoint
+// over TLS in exchange for our client secret, so per OIDC Core 3.1.3.7 its signature needn't be
+// re-verified; the claims still are. Returns { email, sub } or null.
+async function googleIdentity(code, redirectUri, env) {
+  try {
+    const res = await fetch(env.GOOGLE_TOKEN_URL || GOOGLE_TOKEN, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri, grant_type: "authorization_code",
+      }),
+    });
+    if (!res.ok) { console.error("google token exchange", res.status, (await res.text()).slice(0, 200)); return null; }
+    const { id_token } = await res.json();
+    const c = JSON.parse(new TextDecoder().decode(b64urlBytes(String(id_token).split(".")[1])));
+    const ok = c.aud === env.GOOGLE_CLIENT_ID &&
+      (c.iss === "https://accounts.google.com" || c.iss === "accounts.google.com") &&
+      c.exp * 1000 > Date.now() && c.email_verified === true &&
+      typeof c.email === "string" && typeof c.sub === "string";
+    if (!ok) { console.error("google id_token claims rejected"); return null; }
+    return { email: c.email.toLowerCase(), sub: c.sub };
+  } catch (e) {
+    console.error("google identity", e);
+    return null;
+  }
+}
+
+function b64urlBytes(s) {
+  const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  return Uint8Array.from(b, (ch) => ch.charCodeAt(0));
+}
+
+// A tiny grown-up page for the end of the Google round trip. If this is the same app that
+// started the sign-in (its pending secret is in localStorage), go straight back into it.
+function page(message, status, success = false) {
+  const esc = message.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+  const back = success
+    ? `<script>try{if(localStorage.getItem("gappu:login"))location.replace("/")}catch(e){}</script>`
+    : "";
+  return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gappu</title><style>body{font:18px/1.5 system-ui,sans-serif;color:#2A1E5C;background:#FFF9EE;margin:0;display:grid;place-items:center;min-height:100vh}
+main{max-width:420px;padding:24px}a{display:inline-block;margin-top:16px;padding:12px 20px;border-radius:12px;background:#2A1E5C;color:#fff;text-decoration:none;font-weight:700}</style>
+<main><p>${esc}</p><a href="/">Open Gappu</a></main>${back}`, {
+    status,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer" },
   });
 }
 

@@ -90,6 +90,6 @@ When the time limit is reached, Gappu says it's nap time and goes to sleep until
 
 ## Troubleshooting
 
-- **Gappu says to ask Mummy or Papa to check the settings:** the app token on the iPad doesn't match `APP_TOKEN` on the server.
+- **Gappu says to ask Mummy or Papa to check the settings:** this iPad is signed out (device revoked, or the server doesn't know it). Parent settings › Subscription › Sign in again.
 - **"My brain took a nap":** the server or Gemini returned an error. Run `npx wrangler tail`, try again, and read the error.
 - **Voice sounds robotic or reads Hindi strangely:** download the Enhanced Lekha voice (step 3.2).

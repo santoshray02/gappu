@@ -63,6 +63,10 @@ const env = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   APP_TOKEN: ENTITLEMENTS ? undefined : process.env.APP_TOKEN,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  GOOGLE_AUTH_URL: process.env.GOOGLE_AUTH_URL,   // test overrides only
+  GOOGLE_TOKEN_URL: process.env.GOOGLE_TOKEN_URL,
   ENTITLEMENTS,
   ASSETS,
 };

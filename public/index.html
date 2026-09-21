@@ -323,11 +323,14 @@
     overflow-y: auto;
     -webkit-user-select: text; user-select: text;
   }
+  [hidden] { display: none !important; } /* author display rules (label, .row) would beat it */
   .sheet[hidden] { display: none; }
   .wizard form[data-step] { display: none; }
   .wizard form[data-step].on { display: block; }
   .wizard .row { margin-top: 20px; justify-content: space-between; }
   .wizard .consent p { font-size: 16px; }
+  button.google { display: inline-flex; align-items: center; gap: 12px; background: #fff; border: 2px solid #D9D3EE; color: #1f1f1f; font-weight: 700; }
+  button.google svg { width: 22px; height: 22px; }
   .dots { display: flex; gap: 6px; margin-bottom: 16px; }
   .dots i { flex: 1; height: 6px; border-radius: 3px; background: #ECE7F7; }
   .dots i.done { background: var(--ink); }
@@ -512,14 +515,18 @@
       <div class="row"><button class="primary" type="submit">Next</button></div>
     </form>
 
-    <form data-step="token">
-      <h1>Your app token</h1>
-      <label>App token
-        <input name="token" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="xxxxx-xxxxx-xxxxx-xxxxx">
-        <small>From your welcome message.</small>
+    <form data-step="signin">
+      <h1>Sign in</h1>
+      <p>Use the Gmail address you gave us when you joined.</p>
+      <div data-google>
+        <div class="row"><button type="button" class="google" id="wizGoogle"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.2l7.9 6.2C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.7 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.2C6.6 42.6 14.6 48 24 48z"/></svg>Sign in with Google</button></div>
+        <p class="muted" data-wait hidden>Waiting for Google… If you signed in on another screen, come back here. <button type="button" class="ghost" data-restart>Start again</button></p>
+      </div>
+      <label data-legacy hidden>App token
+        <input name="token" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       </label>
       <p class="err" role="alert" data-err></p>
-      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit">Check and continue</button></div>
+      <div class="row"><button type="button" class="ghost" data-back>Back</button><button class="primary" type="submit" data-legacy hidden>Check and continue</button></div>
     </form>
 
     <form data-step="child">
@@ -612,6 +619,8 @@
         <p id="planText"></p>
         <div class="bar"><i id="planBar"></i></div>
         <p id="planUsage" class="muted"></p>
+        <p id="planWho" class="muted"></p>
+        <button id="resignIn" type="button" hidden>Sign in again</button>
       </div>
     </div>
 
@@ -631,7 +640,6 @@
         <label>Minutes per session<input name="sessionMinutes" type="number" min="1" max="120" required></label>
         <label>Minutes per day<input name="dailyMinutes" type="number" min="1" max="240" required></label>
       </div>
-      <label>App token<input name="token" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="check"><input name="sounds" type="checkbox"> Sound effects (tap, reply and nap-time chimes)</label>
       <button class="primary" type="submit">Save changes</button><span id="savedMsg" role="status"></span>
     </form>
@@ -1031,7 +1039,7 @@
 
   function openParent() {
     const f = $("#profileForm");
-    for (const k of ["childName", "age", "companionName", "languages", "sessionMinutes", "dailyMinutes", "token"]) f[k].value = settings[k];
+    for (const k of ["childName", "age", "companionName", "languages", "sessionMinutes", "dailyMinutes"]) f[k].value = settings[k];
     f.sounds.checked = settings.sounds !== false;
     $("#savedMsg").textContent = "";
     renderUsage(); renderVoices(); renderMemories(); renderLog(); renderPlan();
@@ -1049,8 +1057,10 @@
     sec.hidden = !me;
     if (!me) return;
     const text = $("#planText"), bar = $("#planBar"), usage = $("#planUsage");
+    $("#resignIn").hidden = !me.bad;
+    $("#planWho").textContent = me.email ? `Signed in as ${me.email}` : "";
     if (me.bad) {
-      text.textContent = "The app token isn't recognised. Check it below.";
+      text.textContent = "This iPad is signed out. Use \u201cSign in again\u201d below.";
       bar.style.width = "0"; usage.textContent = "";
       return;
     }
@@ -1174,7 +1184,6 @@
       languages: f.languages.value,
       sessionMinutes: parseInt(f.sessionMinutes.value, 10) || 15,
       dailyMinutes: parseInt(f.dailyMinutes.value, 10) || 30,
-      token: f.token.value.trim(),
       sounds: f.sounds.checked,
     });
     saveSettings(); applyNames(); renderUsage();
@@ -1209,14 +1218,16 @@
   const wiz = { steps: [], i: 0, draft: {}, fromParent: false };
   const stepEl = (name) => document.querySelector(`#setup form[data-step="${name}"]`);
 
-  function openWizard(start) {
-    wiz.fromParent = start === "voice";
-    wiz.draft = Object.assign({}, settings);
-    wiz.steps = wiz.fromParent ? ["voice", "mic", "lock"]
-      : ["consent", "token", "child", "pin", "voice", "mic", "lock"];
-    if (!wiz.fromParent && isIOS && !standalone && !store.get("skipHome", false)) wiz.steps.unshift("home");
-    const t = stepEl("token"), c = stepEl("child");
-    t.token.value = settings.token || "";
+  // mode: undefined = full setup, "voice" = re-check voice/mic, "signin" = sign this iPad in again.
+  function openWizard(mode, draft) {
+    wiz.mode = mode;
+    wiz.fromParent = !!mode;
+    wiz.draft = draft || Object.assign({}, settings);
+    wiz.steps = mode === "voice" ? ["voice", "mic", "lock"]
+      : mode === "signin" ? ["signin"]
+      : ["consent", "signin", "child", "pin", "voice", "mic", "lock"];
+    if (!mode && isIOS && !standalone && !store.get("skipHome", false)) wiz.steps.unshift("home");
+    const c = stepEl("child");
     c.childName.value = settings.childName; c.age.value = settings.age;
     c.companionName.value = settings.companionName; c.languages.value = settings.languages;
     show("#setup");
@@ -1230,6 +1241,7 @@
     $("#wizDots").innerHTML = wiz.steps.map((_, k) => `<i class="${k <= wiz.i ? "done" : ""}"></i>`).join("");
     document.querySelectorAll("#setup [data-err]").forEach((e) => (e.textContent = ""));
     if (name === "voice") renderWizVoices();
+    if (name === "signin") prepareSignin();
     if (name === "mic") { $("#wizMicMsg").textContent = ""; $("#wizLevel").style.width = "0"; }
     $("#setup").scrollTop = 0;
   }
@@ -1243,7 +1255,76 @@
     nextStep();
   });
 
-  stepEl("token").addEventListener("submit", async (e) => {
+  // ---- Sign in with Google (server-side redirect; see handleGoogle in src/worker.js) ----
+  // The iPad keeps a random secret; only its hash goes through Google. Whichever browser
+  // Google comes back to, this app collects its device token by presenting the secret.
+  const hex = (buf) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const sha256hex = async (str) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)));
+  let pollTimer = null, googleEnabled = null;
+  const LOGIN_ERRORS = {
+    not_invited: "That Gmail address isn't invited yet. Sign in with the one you gave us.",
+    wrong_account: "This email is linked to a different Google account. Please contact us.",
+    cancelled: "Sign-in was cancelled. Tap the button to try again.",
+    google_error: "Google sign-in didn't work. Try again.",
+    expired: "That sign-in expired. Tap the button to try again.",
+  };
+  async function prepareSignin() {
+    const f = stepEl("signin");
+    if (googleEnabled === null) {
+      try { googleEnabled = (await (await fetch("/auth/google/status")).json()).enabled === true; } catch { googleEnabled = true; }
+    }
+    // Servers without Google sign-in (Cloudflare, single-token mode) fall back to typing a token.
+    f.querySelector("[data-google]").hidden = !googleEnabled;
+    f.querySelectorAll("[data-legacy]").forEach((el) => (el.hidden = googleEnabled));
+    f.token.required = !googleEnabled;
+    f.token.value = googleEnabled ? "" : settings.token || "";
+    const pending = store.get("login", null);
+    f.querySelector("[data-wait]").hidden = !pending;
+    $("#wizGoogle").disabled = !!pending;
+    if (pending) pollLogin();
+  }
+  $("#wizGoogle").addEventListener("click", async () => {
+    const secret = hex(crypto.getRandomValues(new Uint8Array(32)));
+    store.set("login", { secret, at: Date.now() });
+    store.set("wizard", { mode: wiz.mode || null, draft: wiz.draft }); // survives the trip to Google
+    location.href = "/auth/google/start?s=" + (await sha256hex(secret));
+  });
+  stepEl("signin").querySelector("[data-restart]").addEventListener("click", () => {
+    store.set("login", null); clearTimeout(pollTimer); prepareSignin();
+  });
+  async function pollLogin() {
+    clearTimeout(pollTimer);
+    const pending = store.get("login", null);
+    if (!pending) return;
+    const err = stepEl("signin").querySelector("[data-err]");
+    if (Date.now() - pending.at > 10 * 60_000) { store.set("login", null); err.textContent = LOGIN_ERRORS.expired; prepareSignin(); return; }
+    let res;
+    try {
+      res = await fetch("/auth/google/poll", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ secret: pending.secret }) });
+    } catch { pollTimer = setTimeout(pollLogin, 3000); return; }
+    if (res.status === 202) { pollTimer = setTimeout(pollLogin, 2000); return; }
+    store.set("login", null);
+    const r = await res.json().catch(() => ({}));
+    if (!res.ok || !r.token) { err.textContent = LOGIN_ERRORS[r.error] || LOGIN_ERRORS.expired; prepareSignin(); return; }
+    await signedIn(r.token);
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && store.get("login", null)) pollLogin(); });
+
+  async function signedIn(token) {
+    const err = stepEl("signin").querySelector("[data-err]");
+    if (wiz.draft.consent) {
+      // The parent's consent, recorded server-side as evidence (version only, nothing about the child).
+      const c = await fetch("/api/consent", { method: "POST", headers: { "content-type": "application/json", "x-app-token": token }, body: JSON.stringify({ version: wiz.draft.consent.v }) }).catch(() => null);
+      if (!c || (!c.ok && c.status !== 404)) { err.textContent = "Signed in, but the server had a problem. Tap Sign in again in a minute."; return; }
+    }
+    wiz.draft.token = token;
+    err.textContent = "";
+    if (wiz.mode === "signin") { settings.token = token; saveSettings(); hide("#setup"); renderPlan(); return; }
+    nextStep();
+  }
+
+  // Legacy token entry, only on servers without Google sign-in.
+  stepEl("signin").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target, err = f.querySelector("[data-err]"), btn = f.querySelector("button[type=submit]");
     const token = f.token.value.trim();
@@ -1251,17 +1332,8 @@
     try {
       const res = await fetch("/api/me", { headers: { "x-app-token": token } });
       if (res.status === 401) { err.textContent = "That token isn't recognised. Check it and try again."; return; }
-      if (res.ok) {
-        const me = await res.json();
-        if (me.status !== "active") { err.textContent = "This token's subscription is not active. Renew it, then try again."; return; }
-      } else if (res.status !== 404) { err.textContent = "The server had a problem. Try again in a minute."; return; }
-      // 404 = a single-token server with no subscriptions; the token is checked on the first chat instead.
-      // The parent's consent, recorded server-side as evidence (version only, nothing about the child).
-      const c = await fetch("/api/consent", { method: "POST", headers: { "content-type": "application/json", "x-app-token": token }, body: JSON.stringify({ version: wiz.draft.consent.v }) });
-      if (!c.ok && c.status !== 404) { err.textContent = "The server had a problem. Try again in a minute."; return; }
-      wiz.draft.token = token;
-      err.textContent = "";
-      nextStep();
+      if (!res.ok && res.status !== 404) { err.textContent = "The server had a problem. Try again in a minute."; return; }
+      await signedIn(token);
     } catch {
       err.textContent = "Can't reach the server. Check the internet and try again.";
     } finally { btn.disabled = false; }
@@ -1356,10 +1428,18 @@
     showBubble(`Namaste ${settings.childName}!`);
   });
   $("#rerunSetup").addEventListener("click", () => { hide("#parent"); openWizard("voice"); });
+  $("#resignIn").addEventListener("click", () => { hide("#parent"); openWizard("signin"); });
 
   // ---------- Start ----------
   applyNames();
-  if (!settings.token || !settings.pinHash || !settings.consent) {
+  const resume = store.get("wizard", null);
+  if (resume && store.get("login", null)) {
+    // Back from Google (or reopened while a sign-in is pending): continue at the sign-in step.
+    store.set("wizard", null);
+    setState("idle");
+    openWizard(resume.mode || undefined, resume.draft);
+    goStep(wiz.steps.indexOf("signin"));
+  } else if (!settings.token || !settings.pinHash || !settings.consent) {
     setState("idle");
     openWizard();
   } else if (usage.date === today() && usage.seconds >= settings.dailyMinutes * 60) {
