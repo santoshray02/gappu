@@ -54,6 +54,26 @@ npm run admin -- create --label "Sharma family" --contact +91… --plan trial   
 npm run admin -- list | usage | renew <id> --months 1 | suspend|resume|revoke|rotate <id>
 ```
 
+## LLM stack (decision pending, 2026-09-21)
+
+Google's terms forbid Gemini for any app used by under-18s (PLAN Phase 0). Tosu's personal use
+is the only thing on it now; no paid family may go on Gemini. Candidate replacement, per turn
+(list prices verified 2026-09-21; token/char counts assumed: 5 s speech, ~2k prompt tokens,
+~150 output tokens, ~180-char reply):
+
+| Piece | Option | ₹/turn |
+|---|---|---|
+| STT | Sarvam Saaras/Saarika (₹30/hr, India-resident, minors OK with parental consent) | ~0.04 |
+| LLM | Claude Haiku 4.5 via LiteLLM (minors OK with safeguards) | ~0.10–0.25 |
+| LLM | Sarvam 105B (₹29/₹73 per 1M in/out) — safety for a 4-year-old unproven | ~0.07 |
+| TTS | iPad `speechSynthesis` (today) | 0 |
+| TTS | Sarvam Bulbul (₹3/1k chars) — better voice, handles Roman Hinglish | ~0.55 |
+
+At 30 turns/day: STT + Haiku + device TTS ≈ ₹130–260/month (fits ₹349); adding Bulbul
+≈ +₹500/month (does not). Gemini Live API is moot (same terms) and ~10–15× flash-lite cost.
+Spike: run README §5 safety clips through STT → Haiku and STT → Sarvam 105B; measure latency.
+Sarvam's API data-training opt-out is **unverified** — confirm before sending child audio.
+
 ## Next task (in order)
 
 1. **iPad verification** — README §3–5 on the real device: Enhanced Lekha voice, Add to Home

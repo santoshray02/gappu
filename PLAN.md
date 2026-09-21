@@ -26,8 +26,14 @@ XV shell tenant app. Reasons, in order:
 
 - [ ] Lawyer review: **DPDP Act 2023** verifiable-parental-consent flow, no behavioural
       tracking of children, retention statement, grievance officer.
-- [ ] Confirm Gemini terms for a **child-directed** product. Expectation: move from the AI Studio
-      key to **Vertex AI** (enterprise terms, DPA, no-training). Same model, different endpoint.
+- [x] ~~Confirm Gemini terms for a **child-directed** product. Expectation: move to Vertex AI.~~
+      **Falsified 2026-09-21.** Both forbid it: Gemini API terms (ai.google.dev/gemini-api/terms,
+      updated 2026-04-28, "Age Requirements") and Google Cloud Service Specific Terms (modified
+      2026-09-16, "Generative AI Services" §(d)): no app "directed towards or … likely to be accessed
+      by individuals under the age of 18"; §(f) allows immediate suspension. Gemini (any endpoint,
+      incl. Live API) must be replaced before any paid launch. Anthropic's API permits
+      minors-facing products with safeguards (support.claude.com article 9307344); Sarvam permits
+      under-18 use with verifiable parental consent and is India-resident. See HANDOFF "LLM stack".
 - [ ] Terms of service: "pretend friend, not supervision", safety-incident process, refund policy.
 - [ ] Decide the legal seller entity and GST treatment (Xentovia).
 
