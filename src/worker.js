@@ -3,10 +3,16 @@
 //   GEMINI_API_KEY  - from https://aistudio.google.com/apikey (use a PAID-tier key)
 //   APP_TOKEN       - any long random password; you type it once on the iPad
 // Optional variable: GEMINI_MODEL (default gemini-3.1-flash-lite)
+//
+// Two auth modes, chosen by env:
+//   env.ENTITLEMENTS set (self-hosted, server.js + SQLite): per-family tokens with plan,
+//     status, expiry, monthly audio cap and a rate limit. APP_TOKEN is not used.
+//   otherwise (Cloudflare): the single APP_TOKEN, no limits.
 
 const MODEL_DEFAULT = "gemini-3.1-flash-lite";
 const MAX_AUDIO_B64 = 2_000_000; // about 1.5 MB of WAV, roughly 45 s at 16 kHz
 const MOODS = ["happy", "curious", "calm", "silly", "caring"];
+const WAV_BYTES_PER_S = 32000; // the only accepted format: 16 kHz, mono, 16-bit PCM
 
 const SCHEMA = {
   type: "OBJECT",
@@ -39,14 +45,57 @@ export default {
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
       return handleChat(request, env);
     }
+    if (url.pathname === "/api/me") {
+      if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+      return handleMe(request, env);
+    }
     return env.ASSETS.fetch(request);
   },
 };
 
-async function handleChat(request, env) {
-  if (!env.APP_TOKEN || request.headers.get("x-app-token") !== env.APP_TOKEN) {
-    return json({ error: "Unauthorized" }, 401);
+// The one place a token becomes a family. Phase 2 swaps the body for shell-JWT verification.
+// Returns { family } (null in single-token mode) or { error: Response }. Fails closed.
+async function resolveFamily(request, env) {
+  const token = (request.headers.get("x-app-token") || "").trim();
+  const store = env.ENTITLEMENTS;
+  if (!store) {
+    if (!env.APP_TOKEN || !token || token !== env.APP_TOKEN) return { error: json({ error: "Unauthorized" }, 401) };
+    return { family: null };
   }
+  const family = token ? await store.lookup(await sha256Hex(token)) : null;
+  if (!family) return { error: json({ error: "Unauthorized" }, 401) };
+  return { family };
+}
+
+// Why this family may not talk right now, as a Response, or null if it may.
+async function entitlementError(family, env) {
+  if (!family) return null;
+  const expired = family.expires_at && !(Date.parse(family.expires_at) > Date.now());
+  if (family.status !== "active" || expired) return json({ error: "subscription" }, 402);
+  const used = await env.ENTITLEMENTS.usage(family.id);
+  if (used.audio_s >= family.monthly_cap_s) return json({ error: "cap" }, 429);
+  return null;
+}
+
+async function handleMe(request, env) {
+  if (!env.ENTITLEMENTS) return json({ error: "No subscriptions on this server" }, 404);
+  const { family, error } = await resolveFamily(request, env);
+  if (error) return error;
+  const used = await env.ENTITLEMENTS.usage(family.id);
+  return json({
+    plan: family.plan,
+    status: family.status,
+    expires_at: family.expires_at,
+    used_s: used.audio_s,
+    cap_s: family.monthly_cap_s,
+  });
+}
+
+async function handleChat(request, env) {
+  const { family, error } = await resolveFamily(request, env);
+  if (error) return error;
+  const denied = await entitlementError(family, env);
+  if (denied) return denied;
   if (!env.GEMINI_API_KEY) return json({ error: "Server is missing GEMINI_API_KEY" }, 500);
 
   let body;
@@ -58,6 +107,20 @@ async function handleChat(request, env) {
 
   const audio = typeof body.audio === "string" ? body.audio : "";
   if (!audio || audio.length > MAX_AUDIO_B64) return json({ error: "Audio missing or too long" }, 400);
+  const audioSeconds = wavSeconds(audio);
+  if (!audioSeconds) return json({ error: "Audio must be 16 kHz mono 16-bit WAV" }, 400);
+
+  if (family && !(await env.ENTITLEMENTS.allowTurn(family.id))) return json({ error: "rate" }, 429);
+  // Counted whether or not Gemini succeeds: a failing call still costs money.
+  const stats = { calls: 0 };
+  try {
+    return await converse(body, audio, env, stats);
+  } finally {
+    if (family) await env.ENTITLEMENTS.record(family.id, { turns: 1, audio_s: audioSeconds, gemini_calls: stats.calls });
+  }
+}
+
+async function converse(body, audio, env, stats) {
 
   const profile = cleanProfile(body.profile);
   const memories = (Array.isArray(body.memories) ? body.memories : [])
@@ -97,7 +160,7 @@ async function handleChat(request, env) {
   };
 
   const model = env.GEMINI_MODEL || MODEL_DEFAULT;
-  let result = await askGemini(model, payload, env.GEMINI_API_KEY);
+  let result = await askGemini(model, payload, env.GEMINI_API_KEY, stats);
   if (result.out && romanHindi(result.out)) {
     // The model wrote Hindi in Roman letters; ask once more, pointedly.
     contents.push({ role: "model", parts: [{ text: JSON.stringify(result.out) }] });
@@ -105,7 +168,7 @@ async function handleChat(request, env) {
       role: "user",
       parts: [{ text: "That reply is in Roman letters. Rewrite the same reply entirely in Devanagari script (हिंदी अक्षर), same JSON fields." }],
     });
-    const retry = await askGemini(model, payload, env.GEMINI_API_KEY);
+    const retry = await askGemini(model, payload, env.GEMINI_API_KEY, stats);
     if (retry.out && !romanHindi(retry.out)) result = retry;
   }
   if (result.error) return result.error;
@@ -116,11 +179,13 @@ async function handleChat(request, env) {
 
 // Calls Gemini and parses the structured reply. Returns one of:
 // { error: Response } | { blocked: true } | { out: null } (bad JSON) | { out: object }
-async function askGemini(model, payload, key) {
+async function askGemini(model, payload, key, stats) {
+  stats.calls++;
   let res = await callGemini(model, payload, key);
   if (res.status === 400) {
     // Some models don't accept thinkingLevel; retry without it.
     delete payload.generationConfig.thinkingConfig;
+    stats.calls++;
     res = await callGemini(model, payload, key);
   }
   if (!res.ok) {
@@ -187,6 +252,26 @@ function callGemini(model, payload, key) {
     headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify(payload),
   });
+}
+
+// Whole seconds of audio in a base64 WAV, or 0 if it isn't 16 kHz mono 16-bit PCM.
+// Duration comes from the byte count, never the header's byteRate, so a forged header
+// can't make a long clip look short and slip under the monthly cap.
+function wavSeconds(b64) {
+  let h;
+  try { h = atob(b64.slice(0, 48)); } catch { return 0; }
+  const u16 = (o) => h.charCodeAt(o) | (h.charCodeAt(o + 1) << 8);
+  const u32 = (o) => (u16(o) + u16(o + 2) * 65536);
+  const ok = h.length >= 36 && h.slice(0, 4) === "RIFF" && h.slice(8, 16) === "WAVEfmt " &&
+    u16(20) === 1 && u16(22) === 1 && u32(24) === 16000 && u16(34) === 16;
+  if (!ok) return 0;
+  const bytes = Math.floor((b64.length * 3) / 4) - 44;
+  return Math.max(1, Math.ceil(bytes / WAV_BYTES_PER_S));
+}
+
+async function sha256Hex(s) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 const DEVANAGARI = /[ऀ-ॿ]/;

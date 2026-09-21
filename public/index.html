@@ -539,6 +539,15 @@
       </div>
     </div>
 
+    <div id="planSection" hidden>
+      <h2>Subscription</h2>
+      <div class="card">
+        <p id="planText"></p>
+        <div class="bar"><i id="planBar"></i></div>
+        <p id="planUsage" class="muted"></p>
+      </div>
+    </div>
+
     <h2>Profile and limits</h2>
     <form id="profileForm">
       <div class="grid2">
@@ -722,6 +731,8 @@
     error: { hi: "ओह! मेरा दिमाग थोड़ा सो गया। फिर से बोलो?", en: "Oops, my brain took a little nap. Try again?" },
     offline: { hi: "इंटरनेट नहीं मिल रहा। मम्मी पापा से कहो, देख लें।", en: "I can't find the internet. Ask Mummy or Papa to check." },
     auth: { hi: "मम्मी पापा से कहो, सेटिंग देख लें।", en: "Please ask Mummy or Papa to check the settings." },
+    subscription: { hi: "मुझे जगाने के लिए मम्मी पापा की मदद चाहिए। उनसे कहो, सेटिंग देख लें।", en: "I need Mummy or Papa to help me wake up. Ask them to check the settings." },
+    cap: { hi: "इस महीने हमने बहुत सारी बातें कर लीं! अब मम्मी पापा से पूछो।", en: "We have talked so much this month! Now ask Mummy or Papa." },
     mic: { hi: "मैं तुम्हें सुन नहीं पा रहा। मम्मी पापा से मदद लो।", en: "I can't hear you. Ask Mummy or Papa for help." },
   };
   const sayLine = (key) => speak(LINES[key][defaultLang()], defaultLang());
@@ -819,6 +830,8 @@
         }),
       });
       if (res.status === 401) throw new Error("auth");
+      if (res.status === 402) throw new Error("subscription");
+      if (res.status === 429 && (await res.json().catch(() => ({}))).error === "cap") throw new Error("cap");
       if (!res.ok) throw new Error("http " + res.status);
       const r = await res.json();
       if (r.heard && r.reply) history.push({ heard: r.heard, reply: r.reply });
@@ -829,7 +842,7 @@
       speak(r.reply, r.lang);
     } catch (e) {
       console.error(e);
-      const key = e.message === "auth" ? "auth" : (e instanceof TypeError || !navigator.onLine) ? "offline" : "error";
+      const key = ["auth", "subscription", "cap"].includes(e.message) ? e.message : (e instanceof TypeError || !navigator.onLine) ? "offline" : "error";
       sayLine(key);
     }
   }
@@ -953,8 +966,42 @@
     for (const k of ["childName", "age", "companionName", "languages", "sessionMinutes", "dailyMinutes", "token"]) f[k].value = settings[k];
     f.sounds.checked = settings.sounds !== false;
     $("#savedMsg").textContent = "";
-    renderUsage(); renderVoices(); renderMemories(); renderLog();
+    renderUsage(); renderVoices(); renderMemories(); renderLog(); renderPlan();
     show("#parent");
+  }
+  // Server-side plan and this month's talk time. Hidden when the server has no subscriptions.
+  async function renderPlan() {
+    const sec = $("#planSection");
+    let me;
+    try {
+      const res = await fetch("/api/me", { headers: { "x-app-token": settings.token } });
+      if (res.status === 401) me = { bad: true };
+      else if (res.ok) me = await res.json();
+    } catch {}
+    sec.hidden = !me;
+    if (!me) return;
+    const text = $("#planText"), bar = $("#planBar"), usage = $("#planUsage");
+    if (me.bad) {
+      text.textContent = "The app token isn't recognised. Check it below.";
+      bar.style.width = "0"; usage.textContent = "";
+      return;
+    }
+    const plans = { trial: "Free trial", monthly: "Monthly plan", yearly: "Yearly plan", channel_school: "Through school" };
+    const exp = me.expires_at ? new Date(me.expires_at) : null;
+    const days = exp ? Math.ceil((exp - Date.now()) / 86400000) : null;
+    const date = exp && exp.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    let state;
+    if (me.status === "cancelled") state = "Cancelled.";
+    else if (me.status === "past_due") state = "Payment due. Gappu is paused until it is renewed.";
+    else if (days !== null && days <= 0) state = `Ended on ${date}. Gappu is paused until it is renewed.`;
+    else if (days !== null) state = `Active until ${date} (${days} day${days === 1 ? "" : "s"} left).`;
+    else state = "Active.";
+    text.textContent = `${plans[me.plan] || me.plan}. ${state}`;
+    const used = Math.round(me.used_s / 60), cap = Math.round(me.cap_s / 60);
+    const pct = Math.min(100, Math.round((me.used_s / me.cap_s) * 100));
+    bar.style.width = pct + "%";
+    bar.className = pct >= 100 ? "full" : pct >= 80 ? "warn" : "";
+    usage.textContent = `${used} of ${cap} talking minutes used this month.`;
   }
   function renderUsage() {
     if (usage.date !== today()) usage = { date: today(), seconds: 0 };

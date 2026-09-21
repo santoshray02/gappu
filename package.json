@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "start": "node server.js"
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "admin": "node --disable-warning=ExperimentalWarning bin/gappu-admin.js"
   }
 }

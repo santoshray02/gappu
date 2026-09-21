@@ -1,8 +1,8 @@
-// Runs the Cloudflare Worker in plain Node (18+) for self-hosting behind a
+// Runs the Cloudflare Worker in plain Node (22+ for node:sqlite) for self-hosting behind a
 // reverse proxy. Same code path as Cloudflare: src/worker.js gets a Request and
 // an env; ASSETS is a tiny static file server for public/.
 //
-//   PORT=10800 HOST=0.0.0.0 GEMINI_API_KEY=... APP_TOKEN=... node server.js
+//   PORT=10800 HOST=0.0.0.0 GEMINI_API_KEY=... node server.js   (families: bin/gappu-admin.js)
 
 import http from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -48,10 +48,22 @@ const ASSETS = {
   },
 };
 
+// Per-family tokens from SQLite (Node 22+) unless GAPPU_DB=off, which restores the
+// single APP_TOKEN mode. With the DB on, APP_TOKEN is deliberately NOT passed to the
+// worker, so a wiring mistake fails closed (401) instead of falling back to an uncapped token.
+// If the DB can't open, the process dies at startup and systemd keeps retrying: loud.
+const DB_PATH = process.env.GAPPU_DB || path.join(ROOT, "data", "gappu.db");
+let ENTITLEMENTS;
+if (DB_PATH !== "off") {
+  const { openDb, createStore } = await import("./src/entitlements.js");
+  ENTITLEMENTS = createStore(openDb(DB_PATH));
+}
+
 const env = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-  APP_TOKEN: process.env.APP_TOKEN,
+  APP_TOKEN: ENTITLEMENTS ? undefined : process.env.APP_TOKEN,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  ENTITLEMENTS,
   ASSETS,
 };
 
@@ -87,4 +99,4 @@ http.createServer(async (req, res) => {
     res.writeHead(e.message === "body too large" ? 413 : 500, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: e.message === "body too large" ? "Audio too long" : "Server error" }));
   }
-}).listen(PORT, HOST, () => console.log(`gappu listening on http://${HOST}:${PORT}`));
+}).listen(PORT, HOST, () => console.log(`gappu listening on http://${HOST}:${PORT} (${ENTITLEMENTS ? "families: " + DB_PATH : "single APP_TOKEN"})`));

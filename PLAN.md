@@ -1,6 +1,6 @@
 # Gappu as a subscription — plan of record
 
-**Status:** proposed, 2026-09-21. Nothing below is built yet except what is marked *(exists)*.
+**Status:** Phase 1 built and live 2026-09-21 (entitlement layer, `/api/me`, admin CLI, spoken lines, nightly backup). Deviations: no 60 s cache (SQLite lookups are direct, so revoke is instant); ids are `fam_<hex>` not ulid; tokens are `xxxxx-xxxxx-xxxxx-xxxxx`. Phase 0, M2+ not started.
 **Owner:** Xentovia (XV). EdunodeX is a sales channel, not the host.
 
 ## Decision
